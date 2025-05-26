@@ -312,7 +312,7 @@ wandb==0.19.1
 watchdog==6.0.0
 watchfiles==1.0.3
 wcwidth==0.2.13
-websockets==14.1
+websockets==15.0.1
 Werkzeug==3.1.1
 wheel==0.44.0
 wrapt==1.17.0
