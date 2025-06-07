@@ -1,7 +1,7 @@
 set -x
 
 PROJECT_NAME="deepeyes-dapo"
-EXPERIMENT_NAME="dapo_debug_v1"
+EXPERIMENT_NAME="dapo_debug_v8"
 
 export SAVE_CHECKPOINT_DIR=/diancpfs/user/fengyuan/verl_checkpoints
 # export VLLM_ATTENTION_BACKEND=XFORMERS # vllm + qwen2-7b with flash_attn has some issues
@@ -14,13 +14,14 @@ EUREKA_DATASET_TRAIN=${BASEDIR}/data_thinklite_reasoning_function_call.parquet
 XINCE_DATASET_TRAIN=${BASEDIR}/train_xince_acc.parquet
 SEEKWORLD_DATASET_TRAIN=${BASEDIR}/seekworld_train_acc.parquet
 
-DATA_V2_TRAIN_0_1_2=/cpfs/user/fengyuan/verl_data/minghao_data/data_0.1.2_visual_toolbox_v2_acc.parquet
-DATA_V2_TRAIN_0_8_SPLIT1=/cpfs/user/fengyuan/verl_data/minghao_data/minghao_data_vnew/data_v0.8_visual_toolbox_v2_acc_split1.parquet
-DATA_V2_TRAIN_0_8_SPLIT2=/cpfs/user/fengyuan/verl_data/minghao_data/minghao_data_vnew/data_v0.8_visual_toolbox_v2_acc_split2.parquet
-DATA_V2_TRAIN_THINKLITE=/cpfs/user/fengyuan/verl_data/minghao_data/data_thinklite_reasoning_function_call_acc.parquet
-DATA_V2_TRAIN_XINCE=/cpfs/user/fengyuan/verl_data/minghao_data/train_xince_acc_acc.parquet
-DATA_V2_TRAIN_GEOGUESSR=/cpfs/user/fengyuan/verl_data/minghao_data/seekworld_train_acc_acc.parquet
+DATA_V2_TRAIN_0_1_2=/cpfs/user/fengyuan/verl_data/minghao_data/data_0.1.2_visual_toolbox_v2_acc_v2.parquet
+DATA_V2_TRAIN_0_8_SPLIT1=/cpfs/user/fengyuan/verl_data/minghao_data/minghao_data_vnew/data_v0.8_visual_toolbox_v2_acc_split1_v2.parquet
+DATA_V2_TRAIN_0_8_SPLIT2=/cpfs/user/fengyuan/verl_data/minghao_data/minghao_data_vnew/data_v0.8_visual_toolbox_v2_acc_split2_v2.parquet
+DATA_V2_TRAIN_THINKLITE=/cpfs/user/fengyuan/verl_data/minghao_data/data_thinklite_reasoning_function_call_acc_v2.parquet
+DATA_V2_TRAIN_XINCE=/cpfs/user/fengyuan/verl_data/minghao_data/train_xince_acc_acc_v2.parquet
+DATA_V2_TRAIN_GEOGUESSR=/cpfs/user/fengyuan/verl_data/minghao_data/seekworld_train_acc_acc_v2.parquet
 
+CUSTOM_STOP='["</tool_call>"]'
 LOSS_AGG_MODE="token-mean"
 export WORKING_DIR=${WORKING_DIR:-"${PWD}"}
 export RUNTIME_ENV=${RUNTIME_ENV:-"${WORKING_DIR}/verl/trainer/runtime_env.yaml"}
@@ -32,7 +33,7 @@ PYTHONUNBUFFERED=1 python3 -m recipe.deepeyes_v2.main_dapo \
     data.train_files=[${DATA_V2_TRAIN_0_1_2},${DATA_V2_TRAIN_0_8_SPLIT1},${DATA_V2_TRAIN_0_8_SPLIT2},${DATA_V2_TRAIN_THINKLITE},${DATA_V2_TRAIN_XINCE},${DATA_V2_TRAIN_GEOGUESSR}] \
     data.val_files=[${EUREKA_DATASET_TRAIN}] \
     data.train_batch_size=256 \
-    data.gen_batch_size=128 \
+    data.gen_batch_size=256 \
     data.max_prompt_length=8192 \
     data.max_response_length=16384 \
     data.return_raw_chat=True \
@@ -51,7 +52,7 @@ PYTHONUNBUFFERED=1 python3 -m recipe.deepeyes_v2.main_dapo \
     actor_rollout_ref.actor.clip_ratio_high=0.28 \
     actor_rollout_ref.actor.clip_ratio_c=10.0 \
     actor_rollout_ref.actor.ppo_mini_batch_size=256 \
-    actor_rollout_ref.actor.ppo_micro_batch_size_per_gpu=1 \
+    actor_rollout_ref.actor.ppo_micro_batch_size_per_gpu=2 \
     actor_rollout_ref.actor.use_kl_loss=False \
     actor_rollout_ref.actor.kl_loss_coef=0.0 \
     actor_rollout_ref.actor.kl_loss_type=low_var_kl \
@@ -77,6 +78,7 @@ PYTHONUNBUFFERED=1 python3 -m recipe.deepeyes_v2.main_dapo \
     actor_rollout_ref.rollout.agent.single_response_max_tokens=8192 \
     actor_rollout_ref.rollout.agent.max_turns=20 \
     actor_rollout_ref.rollout.agent.concurrent_workers=1 \
+    actor_rollout_ref.rollout.agent.custom_stop=${CUSTOM_STOP} \
     actor_rollout_ref.rollout.agent.show_tqdm=True \
     reward_model.reward_manager=dapo \
     trainer.critic_warmup=0 \

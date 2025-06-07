@@ -276,7 +276,7 @@ def compute_score(predict_str: str, ground_truth: str, extra_info=None) -> float
 
     return {
         "score": final_score,
-        "acc": acc_reward,
+        "acc": final_score,
     }
 
 
@@ -347,7 +347,7 @@ def compute_common_reasoning(predict_str: str, ground_truth: str, extra_info=Non
 
     return {
         "score": final_score,
-        "acc": acc_reward,
+        "acc": final_score,
     }
 
 
@@ -407,17 +407,16 @@ def compute_score_math(predict_str: str, ground_truth: str, extra_info=None) -> 
     # if count_think_1 != count_think_2:
     #     is_format_error = True
 
-    # count_vision_1 = predict_str.count("<|vision_start|><|image_pad|>")
-    # count_vision_2 = predict_str.count("<|image_pad|><|vision_end|>")
-    # if count_vision_1 != count_vision_2:
-    #     is_format_error = True
+    count_vision_1 = predict_str.count("<|vision_start|><|image_pad|>")
+    count_vision_2 = predict_str.count("<|image_pad|><|vision_end|>")
+    if count_vision_1 != count_vision_2:
+        is_format_error = True
 
-    # predict_no_think = predict_str.split('</think>')[-1].strip()
-    # count_answer_1 = predict_no_think.count("<answer>")
-    # count_answer_2 = predict_no_think.count("</answer>")
-    # if count_answer_1 != count_answer_2:
-    #     is_format_error = True
-    # tool_reward = 1.0 if count_vision_1 > 0 and acc_reward > 0.5 else 0.0
+    predict_no_think = predict_str.split('</think>')[-1].strip()
+    count_answer_1 = predict_no_think.count("<answer>")
+    count_answer_2 = predict_no_think.count("</answer>")
+    if count_answer_1 != count_answer_2:
+        is_format_error = True
 
     model_answer = ""
     predict_no_think = predict_str.split('</think>')[-1].strip()
@@ -438,13 +437,14 @@ def compute_score_math(predict_str: str, ground_truth: str, extra_info=None) -> 
         else:
             acc_reward = 1.0 if generative_verify(extra_info['question'], ground_truth, model_answer) else 0.0
     
+    tool_reward = 1.0 if count_vision_1 > 0 and acc_reward > 0.5 else 0.0
     format_reward = -1.0 if is_format_error else 0.0
     print(f' [DEBUG] query={extra_info["question"]}, {ground_truth=}, {model_answer=}, {acc_reward=}, {format_reward=}')
-    final_score = 2.0 * acc_reward + 0.2 * format_reward
+    final_score = 0.8 * acc_reward + 0.2 * format_reward + 1.2 * tool_reward
 
     return {
         "score": final_score,
-        "acc": acc_reward,
+        "acc": final_score,
     }
 
 

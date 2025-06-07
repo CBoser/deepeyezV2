@@ -36,6 +36,24 @@ from verl.trainer.ppo.metric_utils import (
 from verl.trainer.ppo.ray_trainer import AdvantageEstimator, RayPPOTrainer, _timer, apply_kl_penalty, compute_advantage, compute_response_mask
 from verl.trainer.ppo.metric_utils import compute_agent_metrics
 
+
+def get_reward_gain(reward_list, temp=0.25):
+    if isinstance(reward_list, torch.Tensor):
+        reward_array = reward_list.cpu().numpy()
+    elif isinstance(reward_list, list):
+        reward_array = np.array(reward_list, dtype=np.float64)
+    elif isinstance(reward_list, np.ndarray):
+        reward_array = reward_list
+    else:
+        raise TypeError(f"Unsupported type for reward_list: {type(reward_list)}. Expected torch.Tensor, list, or np.ndarray.")
+
+    reward_array_ct = reward_array - reward_array.max()
+    reward_array_ctt = reward_array_ct / temp
+    exp_rewards = np.exp(reward_array_ctt)
+    soft_dist = exp_rewards / exp_rewards.sum()
+    return np.sum(soft_dist * reward_array) - reward_array.mean()
+
+
 class RayDAPOTrainer(RayPPOTrainer):
     """
     Note that this trainer runs on the driver process on a single CPU/GPU node.
@@ -193,9 +211,10 @@ class RayDAPOTrainer(RayPPOTrainer):
 
                         prompt_uid2metric_std = {}
                         for prompt_uid, metric_vals in prompt_uid2metric_vals.items():
-                            prompt_uid2metric_std[prompt_uid] = np.std(metric_vals)
+                            # prompt_uid2metric_std[prompt_uid] = np.std(metric_vals)
+                            prompt_uid2metric_std[prompt_uid] = get_reward_gain(metric_vals)
 
-                        kept_prompt_uids = [uid for uid, std in prompt_uid2metric_std.items() if std > 0.01 or len(prompt_uid2metric_vals[uid]) == 1]
+                        kept_prompt_uids = [uid for uid, std in prompt_uid2metric_std.items() if std > 0.2 or len(prompt_uid2metric_vals[uid]) == 1]
                         num_prompt_in_batch += len(kept_prompt_uids)
 
                         kept_traj_idxs = []
@@ -218,6 +237,7 @@ class RayDAPOTrainer(RayPPOTrainer):
                         else:
                             # Align the batch
                             traj_bsz = self.config.data.train_batch_size * self.config.actor_rollout_ref.rollout.n
+                            print(f' [DEBUG DAPO] {len(batch)=} >= {traj_bsz=}, break...')
                             batch = batch[:traj_bsz]
 
                     # === Updating ===
@@ -315,13 +335,13 @@ class RayDAPOTrainer(RayPPOTrainer):
                 if self.config.actor_rollout_ref.rollout.agent.activate_agent:
                     metrics.update(compute_agent_metrics(batch=batch))
 
+                # TODO: make a canonical logger that supports various backend
+                logger.log(data=metrics, step=self.global_steps, batch=batch, tokenizer=self.tokenizer)
+
                 metrics["train/num_gen_batches"] = num_gen_batches
                 batch = None
                 num_prompt_in_batch = 0
                 num_gen_batches = 0
-
-                # TODO: make a canonical logger that supports various backend
-                logger.log(data=metrics, step=self.global_steps)
 
                 if is_last_step:
                     pprint(f"Final validation metrics: {last_val_metrics}")

@@ -138,7 +138,7 @@ def agent_rollout_loop(config, vllm_engine, vllm_inputs, prompts, multi_modal_in
     #     151644,    # <|im_start|>
     # ])
     # agent_sampling_params.logits_processors = [exclude_func]
-    # agent_sampling_params.bad_words = ["<|endoftext|>", "<|im_start|>"]
+    agent_sampling_params.bad_words = ["<|endoftext|>", "<size>", "<|im_start|>"]
 
     tokenizer = hf_tokenizer(config.agent.vl_model_path)
     processor = hf_processor(config.agent.vl_model_path)
