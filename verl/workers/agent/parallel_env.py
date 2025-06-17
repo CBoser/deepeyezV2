@@ -79,7 +79,7 @@ def _merge_multi_modal_inputs(mm_input, other):
 
 
 def _preprocess_multi_modal_inputs(prompt_str, processor, **kwargs):
-    if processor is None or "multi_modal_data" not in kwargs:
+    if processor is None:
         return prompt_str, prompt_str, {}
 
     vllm_input_prompt = prompt_str.replace('<image>', '<|vision_start|><|image_pad|><|vision_end|>')

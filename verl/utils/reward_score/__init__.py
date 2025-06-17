@@ -94,6 +94,10 @@ def default_compute_score(data_source, solution_str, ground_truth, extra_info=No
         from . import vl_agent
         res = vl_agent.compute_common_reasoning(solution_str, ground_truth, extra_info)
 
+    elif data_source in ['seekworld-test']:
+        from . import vl_agent
+        res = vl_agent.compute_score_acc(solution_str, ground_truth, extra_info)
+
     elif data_source in ['thinklite_eureka', 'xince']:
         from . import vl_agent
         res = vl_agent.compute_score_math(solution_str, ground_truth, extra_info)
