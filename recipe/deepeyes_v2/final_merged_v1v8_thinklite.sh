@@ -1,7 +1,7 @@
 set -x
 
 PROJECT_NAME="deepeyes-dapo"
-EXPERIMENT_NAME="dapo_7b_debug_v32"
+EXPERIMENT_NAME="reproduce_v1_7b_v0"
 
 export SAVE_CHECKPOINT_DIR=/diancpfs/user/fengyuan/verl_checkpoints
 # export VLLM_ATTENTION_BACKEND=XFORMERS # vllm + qwen2-7b with flash_attn has some issues
@@ -24,6 +24,7 @@ DATA_TRAIN_SEEKWORLD=/cpfs/user/fengyuan/verl_data/minghao_data/seekworld_train_
 DATA_TRAIN_GEOGUESSR_1=/cpfs/user/fengyuan/code/github/zero-rl-data/geoguessr/kaggle-geoguessr/kaggle-geoguessr.parquet
 DATA_TRAIN_GEOGUESSR_2=/cpfs/user/fengyuan/code/github/zero-rl-data/geoguessr/deboradum-geogeussr/deboradum-geogeussr-test.parquet
 
+DATA_V2_TEST_VSTAR=/cpfs/user/fengyuan/code/github/VeRL-Agent-minghao/data/vstar_test_v2.parquet
 DATA_V2_TEST_GEOGUESSR=/cpfs/user/fengyuan/code/github/VeRL-Agent-minghao/data/seekworld_test_v2_v2.parquet
 
 CUSTOM_STOP='["</tool_call>"]'
@@ -35,11 +36,11 @@ REF_MODEL_PATH=/cpfs/user/fengyuan/backbone/qwen25/Qwen2.5-VL-7B-Instruct
 PYTHONUNBUFFERED=1 python3 -m recipe.deepeyes_v2.main_dapo \
     +debug=False \
     +vs_debug=False \
-    data.train_files=[${DATA_V2_TRAIN_0_1_2},${DATA_V2_TRAIN_0_8_SPLIT1},${DATA_V2_TRAIN_0_8_SPLIT2},${DATA_V2_TRAIN_THINKLITE},${DATA_V2_TRAIN_XINCE},${DATA_TRAIN_SEEKWORLD},${DATA_TRAIN_GEOGUESSR_1},${DATA_TRAIN_GEOGUESSR_2}] \
-    data.val_files=[${DATA_V2_TEST_GEOGUESSR}] \
+    data.train_files=[${DATA_V2_TRAIN_0_1_2},${DATA_V2_TRAIN_0_8_SPLIT1},${DATA_V2_TRAIN_0_8_SPLIT2},${DATA_V2_TRAIN_THINKLITE},${DATA_TRAIN_SEEKWORLD}] \
+    data.val_files=[${DATA_V2_TEST_VSTAR}] \
     data.train_batch_size=256 \
     data.gen_batch_size=128 \
-    data.max_prompt_length=8192 \
+    data.max_prompt_length=12288 \
     data.max_response_length=16384 \
     data.return_raw_chat=True \
     data.filter_overlong_prompts=True \
@@ -63,12 +64,13 @@ PYTHONUNBUFFERED=1 python3 -m recipe.deepeyes_v2.main_dapo \
     actor_rollout_ref.actor.kl_loss_type=low_var_kl \
     actor_rollout_ref.actor.entropy_coeff=0.0 \
     actor_rollout_ref.actor.loss_agg_mode=${LOSS_AGG_MODE} \
-    actor_rollout_ref.actor.checkpoint.contents=['model','hf_model','optimizer','extra'] \
+    actor_rollout_ref.actor.checkpoint.save_contents=['model','hf_model','optimizer','extra'] \
     actor_rollout_ref.actor.ulysses_sequence_parallel_size=1 \
     actor_rollout_ref.rollout.log_prob_micro_batch_size_per_gpu=16 \
     actor_rollout_ref.rollout.tensor_model_parallel_size=1 \
     actor_rollout_ref.rollout.name=vllm \
     actor_rollout_ref.rollout.n=16 \
+    actor_rollout_ref.rollout.temperature=1 \
     actor_rollout_ref.rollout.max_num_batched_tokens=32768 \
     actor_rollout_ref.rollout.gpu_memory_utilization=0.7 \
     actor_rollout_ref.rollout.enforce_eager=False \
@@ -81,11 +83,16 @@ PYTHONUNBUFFERED=1 python3 -m recipe.deepeyes_v2.main_dapo \
     actor_rollout_ref.rollout.agent.activate_agent=True \
     actor_rollout_ref.rollout.agent.tool_name_key=env_name \
     actor_rollout_ref.rollout.agent.single_response_max_tokens=8192 \
-    actor_rollout_ref.rollout.agent.max_turns=10 \
+    actor_rollout_ref.rollout.agent.max_turns=9 \
     actor_rollout_ref.rollout.agent.concurrent_workers=1 \
     actor_rollout_ref.rollout.agent.custom_stop=${CUSTOM_STOP} \
     actor_rollout_ref.rollout.agent.show_tqdm=True \
     reward_model.reward_manager=dapo \
+    critic.cliprange_value=50 \
+    critic.model.path=${REF_MODEL_PATH} \
+    critic.model.fsdp_config.param_offload=True \
+    critic.model.fsdp_config.optimizer_offload=True \
+    critic.ppo_micro_batch_size_per_gpu=1 \
     trainer.critic_warmup=0 \
     trainer.logger=['console','wandb','rl_logging_board'] \
     trainer.val_before_train=True \

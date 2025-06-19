@@ -19,7 +19,10 @@ DATA_V2_TRAIN_0_8_SPLIT1=/cpfs/user/fengyuan/verl_data/minghao_data/minghao_data
 DATA_V2_TRAIN_0_8_SPLIT2=/cpfs/user/fengyuan/verl_data/minghao_data/minghao_data_vnew/data_v0.8_visual_toolbox_v2_acc_split2_v2.parquet
 DATA_V2_TRAIN_THINKLITE=/cpfs/user/fengyuan/verl_data/minghao_data/data_thinklite_reasoning_function_call_acc_v2.parquet
 DATA_V2_TRAIN_XINCE=/cpfs/user/fengyuan/verl_data/minghao_data/train_xince_acc_acc_v2.parquet
-DATA_V2_TRAIN_GEOGUESSR=/cpfs/user/fengyuan/verl_data/minghao_data/seekworld_train_acc_acc_v2.parquet
+
+DATA_TRAIN_SEEKWORLD=/cpfs/user/fengyuan/verl_data/minghao_data/seekworld_train_acc_acc_v2.parquet
+DATA_TRAIN_GEOGUESSR_1=/cpfs/user/fengyuan/code/github/zero-rl-data/geoguessr/kaggle-geoguessr/kaggle-geoguessr.parquet
+DATA_TRAIN_GEOGUESSR_2=/cpfs/user/fengyuan/code/github/zero-rl-data/geoguessr/deboradum-geogeussr/deboradum-geogeussr-test.parquet
 
 DATA_V2_TEST_GEOGUESSR=/cpfs/user/fengyuan/code/github/VeRL-Agent-minghao/data/seekworld_test_v2_v2.parquet
 
@@ -32,7 +35,7 @@ REF_MODEL_PATH=/cpfs/user/fengyuan/backbone/qwen25/Qwen2.5-VL-32B-Instruct
 PYTHONUNBUFFERED=1 python3 -m recipe.deepeyes_v2.main_dapo \
     +debug=False \
     +vs_debug=False \
-    data.train_files=[${DATA_V2_TRAIN_0_1_2},${DATA_V2_TRAIN_0_8_SPLIT1},${DATA_V2_TRAIN_0_8_SPLIT2},${DATA_V2_TRAIN_THINKLITE},${DATA_V2_TRAIN_XINCE},${DATA_V2_TRAIN_GEOGUESSR}] \
+    data.train_files=[${DATA_V2_TRAIN_0_1_2},${DATA_V2_TRAIN_0_8_SPLIT1},${DATA_V2_TRAIN_0_8_SPLIT2},${DATA_V2_TRAIN_THINKLITE},${DATA_V2_TRAIN_XINCE},${DATA_TRAIN_SEEKWORLD},${DATA_TRAIN_GEOGUESSR_2}] \
     data.val_files=[${DATA_V2_TEST_GEOGUESSR}] \
     data.train_batch_size=256 \
     data.gen_batch_size=128 \
@@ -60,7 +63,7 @@ PYTHONUNBUFFERED=1 python3 -m recipe.deepeyes_v2.main_dapo \
     actor_rollout_ref.actor.kl_loss_type=low_var_kl \
     actor_rollout_ref.actor.entropy_coeff=0.0 \
     actor_rollout_ref.actor.loss_agg_mode=${LOSS_AGG_MODE} \
-    actor_rollout_ref.actor.checkpoint.contents=['model','hf_model','optimizer','extra'] \
+    actor_rollout_ref.actor.checkpoint.save_contents=['model','hf_model','optimizer','extra'] \
     actor_rollout_ref.actor.ulysses_sequence_parallel_size=1 \
     actor_rollout_ref.rollout.log_prob_micro_batch_size_per_gpu=1 \
     actor_rollout_ref.rollout.tensor_model_parallel_size=4 \

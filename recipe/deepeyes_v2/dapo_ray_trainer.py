@@ -33,7 +33,8 @@ from verl.trainer.ppo.metric_utils import (
     compute_timing_metrics,
     reduce_metrics,
 )
-from verl.trainer.ppo.ray_trainer import AdvantageEstimator, RayPPOTrainer, _timer, apply_kl_penalty, compute_advantage, compute_response_mask
+from verl.utils.debug import marked_timer as _timer
+from verl.trainer.ppo.ray_trainer import AdvantageEstimator, RayPPOTrainer, apply_kl_penalty, compute_advantage, compute_response_mask
 from verl.trainer.ppo.metric_utils import compute_agent_metrics
 
 
@@ -106,6 +107,16 @@ class RayDAPOTrainer(RayPPOTrainer):
         num_gen_batches = 0
         for epoch in range(self.config.trainer.total_epochs):
             for batch_dict in self.train_dataloader:
+                do_profile = self.global_steps in (self.config.trainer.profile_steps or [])
+                if do_profile:
+                    self.actor_rollout_wg.start_profile()
+                    if self.use_reference_policy:
+                        self.ref_policy_wg.start_profile()
+                    if self.use_critic:
+                        self.critic_wg.start_profile()
+                    if self.use_rm:
+                        self.rm_wg.start_profile()
+
                 metrics = {}
 
                 new_batch: DataProto = DataProto.from_single_dict(batch_dict)
@@ -214,7 +225,7 @@ class RayDAPOTrainer(RayPPOTrainer):
                             # prompt_uid2metric_std[prompt_uid] = np.std(metric_vals)
                             prompt_uid2metric_std[prompt_uid] = get_reward_gain(metric_vals)
 
-                        kept_prompt_uids = [uid for uid, std in prompt_uid2metric_std.items() if std > 0.2 or len(prompt_uid2metric_vals[uid]) == 1]
+                        kept_prompt_uids = [uid for uid, std in prompt_uid2metric_std.items() if std > 0.15 or len(prompt_uid2metric_vals[uid]) == 1]
                         num_prompt_in_batch += len(kept_prompt_uids)
 
                         kept_traj_idxs = []
@@ -291,10 +302,7 @@ class RayDAPOTrainer(RayPPOTrainer):
                             lam=self.config.algorithm.lam,
                             num_repeat=self.config.actor_rollout_ref.rollout.n,
                             norm_adv_by_std_in_grpo=norm_adv_by_std_in_grpo,
-                            multi_turn=self.config.actor_rollout_ref.rollout.multi_turn.enable,
-                            use_pf_ppo=self.config.algorithm.use_pf_ppo,
-                            pf_ppo_reweight_method=self.config.algorithm.pf_ppo.reweight_method,
-                            pf_ppo_weight_pow=self.config.algorithm.pf_ppo.weight_pow,
+                            config=self.config.algorithm
                         )
 
                     # update critic
