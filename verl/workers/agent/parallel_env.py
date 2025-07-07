@@ -501,4 +501,7 @@ class ParallelEnv:
         return reset_output_list
 
     def close(self):
+        for tool in self.tools:
+            if tool is not None:
+                tool.close()
         self.tools = []
