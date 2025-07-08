@@ -2,6 +2,7 @@ import re
 import json
 import base64
 import uuid
+import requests
 import numpy as np
 import copy
 from typing import Optional, List, Dict, Any
@@ -31,7 +32,6 @@ stderr:
 {stderr}
 ```
 
-image:
 {image}
 """
 
@@ -95,11 +95,7 @@ class CodeToolBoxV2(ToolBase):
         if answer:
             return "", 0.0, True, {}
 
-        action = self.extract_action(action_string)
-        if not action:
-            return "", 0.0, True, {}
-
-        code_string = self.extract_python_code(action)
+        code_string = self.extract_python_code(action_string)
         if not code_string:
             return "", 0.0, True, {}
 
@@ -113,15 +109,20 @@ class CodeToolBoxV2(ToolBase):
         code_result_string = CODE_EXECUTION_TEMPLATE.format(
             stdout=exec_ret.get('stdout', ''),
             stderr=exec_ret.get('stderr', ''),
-            image="<image>" * len(image_list),
-        )
+            image="Images:\n" + "<image>" * len(image_list) if len(image_list) > 0 else "",
+        ).strip()
 
-        obs = {
-            "prompt": "<|im_end|>\n<|im_start|>user\n" + code_result_string + "<|im_end|>\n<|im_start|>assistant\n<think>",
-            "multi_modal_data": {"image": image_list},
-        }
-        print(f' [DEBUG code] Code success: {action_string=}')
-        return obs, 0,0, False, exec_ret
+        if len(image_list) == 0:
+            obs = "<|im_end|>\n<|im_start|>user\n" + code_result_string + "<|im_end|>\n<|im_start|>assistant\n<think>"
+            print(f' [DEBUG code] Code success without images: {action_string=}')
+            return obs, 0.0, False, exec_ret
+        else:
+            obs = {
+                "prompt": "<|im_end|>\n<|im_start|>user\n" + code_result_string + "<|im_end|>\n<|im_start|>assistant\n<think>",
+                "multi_modal_data": {"image": image_list},
+            }
+            print(f' [DEBUG code] Code success with images: {action_string=}')
+            return obs, 0.0, False, exec_ret
 
     def reset(self, raw_prompt, multi_modal_data, origin_multi_modal_data, **kwargs):
         self.chatml_history = raw_prompt
@@ -148,7 +149,7 @@ class CodeToolBoxV2(ToolBase):
                 },
                 timeout=request_timeout
             ).json()
-            result_dict = res2['output']
+            result_dict = resjson['output']
         except Exception as err:
             print(f' [ERROR code] Request to Jupyter sandbox failed: {err}')
             return None
@@ -186,3 +187,39 @@ class CodeToolBoxV2(ToolBase):
         new_width = ceil(width * ratio)
         new_image = image.resize((new_width, new_height), Image.LANCZOS)
         return new_image
+
+
+if __name__ == "__main__":
+    debug_action = """
+The skateboard appears to be a dark color, possibly black or dark gray, with lighter-colored wheels. However, the exact shade and the distinction between the board and wheels makes it hard to determine the precise color without further detail. The skateboard's deck looks similar to what I see on the majority of boards in standard skate parks.
+
+However, to confirm the color accurately, analyzing the pixel ranges of the skateboard's deck and wheels is required. We can use Python to process the image.
+
+<code>
+```python
+from PIL import Image
+import numpy as np
+
+# Open the image
+image = Image.open('path_to_image')
+
+# Convert to array
+img_array = np.array(image)
+
+# Find the sands of skateboard (black or dark colors w/ yellow wheels)
+skateboard_img = img_array[height_of_skateboard : , width_of_skateboard : ]
+
+# check pixel values and analyze color distribution
+skateboard_img_pixels = skateboard_img.reshape(-1,4)
+
+# Considering the value range for黯 and yuellow wheels
+black_range = np.logical_and(skateboard_img_pixels[:,3] < 50, np.logical_or(skateboard_img_pixels[:,0] < 30, skateboard_img_pixels[:,1] < 50))  # x, y, z, a for REGB
+yellow_range = np.logical_or(skateboard_img_pixels[:,0] > 250, skateboard_img_pixels[:,1] > 250, skateboard_img_pixels[:,2] > 250, skateboard_img_pixels[:,3] < 30)
+
+# If the pixel part covers black range and yellow range, label as skateboard
+# This solution begins with rectangle slicing, images need ratios and antenna should be done 
+```</code>
+""".strip()
+
+    # tool = CodeToolBoxV2("code_toolbox_v2", 2, 3)
+    # tool.action()

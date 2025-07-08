@@ -11,7 +11,7 @@ from .envs.mm_process_engine.visual_toolbox_v5 import VisualToolBoxV5
 from .envs.visual_agent.vl_agent_v2 import VLAgentEnvV2
 from .envs.visual_agent.vl_agent_v3 import VLAgentEnvV3
 
-from .ens.coding.code_toolbox_v2 import CodeToolBoxV2
+from .envs.coding.code_toolbox_v2 import CodeToolBoxV2
 from .envs.xhs_search.image_search import ImageSearch
 
 try:
