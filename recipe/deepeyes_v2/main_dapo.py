@@ -124,6 +124,7 @@ class TaskRunner:
             role_worker_mapping[Role.RefPolicy] = ray.remote(ActorRolloutRefWorker)
             mapping[Role.RefPolicy] = global_pool_id
 
+        reward_kwargs = {}
         reward_manager_name = config.reward_model.get("reward_manager", "naive")
         if reward_manager_name == "naive":
             from verl.workers.reward_manager import NaiveRewardManager
@@ -141,6 +142,8 @@ class TaskRunner:
             from verl.workers.reward_manager.dapo_async import AsyncDAPORewardManager
 
             reward_manager_cls = AsyncDAPORewardManager
+            reward_kwargs["num_workers"] = config.reward_model.num_workers
+        
         else:
             raise NotImplementedError
 
@@ -162,7 +165,8 @@ class TaskRunner:
             reward_fn_key=config.data.reward_fn_key,
             max_resp_len=config.data.max_response_length,
             overlong_buffer_cfg=config.reward_model.overlong_buffer,
-            num_workers=config.reward_model.num_workers,
+            
+            **reward_kwargs,
         )
         resource_pool_manager = ResourcePoolManager(resource_pool_spec=resource_pool_spec, mapping=mapping)
 
