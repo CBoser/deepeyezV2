@@ -147,7 +147,7 @@ def offload_fsdp_model_to_cpu(model: FSDP, empty_cache: bool = True):
             and id(flat_param.data) != id(flat_param._local_shard)
             and flat_param.data.size() == flat_param._local_shard.size()
         )
-        handle.flat_param_to(torch.device("cpu"), non_blocking=False)
+        handle.flat_param_to(torch.device("cpu"), non_blocking=True)
 
         # the following still keeps id(._local_shard) != id(.data)
         flat_param._local_shard = flat_param.data
@@ -200,7 +200,7 @@ def offload_fsdp_optimizer(optimizer):
             state = optimizer.state[param]
             for key, value in state.items():
                 if isinstance(value, torch.Tensor):
-                    state[key] = value.to("cpu", non_blocking=False)
+                    state[key] = value.to("cpu", non_blocking=True)
 
 
 @torch.no_grad()

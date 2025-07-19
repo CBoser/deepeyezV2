@@ -114,13 +114,15 @@ class ImageSearch(ToolBase):
                     "prompt": "<|im_end|>\n<|im_start|>user\n<tool_response>" + obs_text + "</tool_response><|im_end|>\n<|im_start|>assistant\n<think>",
                     "multi_modal_data": {"image": obs_image_list}
                 }
+                num_text_images = obs["prompt"].count("<image>")
+                assert len(obs_image_list) == num_text_images, f"{len(obs_image_list)=} and {num_text_images=} not aligned"
             else:
                 obs = "<|im_end|>\n<|im_start|>user\n<tool_response>" + obs_text + "</tool_response><|im_end|>\n<|im_start|>assistant\n<think>"
 
             reward = 0.0  # Reward for successful tool call with correct JSON
             done = False
             info = {"status": "success", "tool_used": tool_name}
-            print(f'[DEBUG] SUCCESS ACTION {len(obs_image_list)=}, {obs_text=}')
+            # print(f'[DEBUG] SUCCESS ACTION {len(obs_image_list)=}, {obs_text=}')
             return obs, reward, done, info
 
         except Exception as e:
@@ -162,7 +164,7 @@ publish_time: {obs['publish_time']}
                 obs_image_list.append(cover_image)
             all_obs_string += this_obs_string
 
-        print(f' [DEBUG search obs] {all_obs_string}')
+        # print(f' [DEBUG search obs] {all_obs_string}')
         return all_obs_string, obs_image_list
 
     def maybe_download_image(self, image_url):

@@ -134,6 +134,7 @@ class TaskRunner:
             from verl.workers.reward_manager import PrimeRewardManager
 
             reward_manager_cls = PrimeRewardManager
+            reward_kwargs["num_workers"] = config.reward_model.num_workers
         elif reward_manager_name == "dapo":
             from verl.workers.reward_manager import DAPORewardManager
 

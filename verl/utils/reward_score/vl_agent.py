@@ -359,7 +359,7 @@ def compute_common_reasoning(predict_str: str, ground_truth: str, extra_info=Non
     tool_reward_base = 1.0 if count_vision_1 > 0 else 0.0
     tool_reward = 1.0 if count_vision_1 > 0 and acc_reward > 0.5 else 0.0
     format_reward = -1.0 if is_format_error else 0.0
-    print(f' [DEBUG] query={extra_info["question"]}, {ground_truth=}, {answer_text=}, {acc_reward=}, {format_reward=}')
+    # print(f' [DEBUG] query={extra_info["question"]}, {ground_truth=}, {answer_text=}, {acc_reward=}, {format_reward=}')
     final_score = 0.8 * acc_reward + 0.2 * format_reward + 1.2 * tool_reward
 
     return {
@@ -450,7 +450,7 @@ def compute_score_math(predict_str: str, ground_truth: str, extra_info=None) -> 
 
     tool_reward = 1.0 if count_vision_1 > 0 and acc_reward > 0.5 else 0.0
     format_reward = -1.0 if is_format_error else 0.0
-    print(f' [DEBUG] query={extra_info["question"]}, {ground_truth=}, {answer_text=}, {acc_reward=}, {format_reward=}')
+    # print(f' [DEBUG] query={extra_info["question"]}, {ground_truth=}, {answer_text=}, {acc_reward=}, {format_reward=}')
     final_score = 1.6 * acc_reward + 0.2 * format_reward + 0.4 * tool_reward
 
     return {
@@ -642,7 +642,7 @@ def compute_score_math_with_boxed(predict_str: str, ground_truth: str, extra_inf
         
     format_reward = -1.0 if is_format_error else 0.0
     final_score = 2.0 * acc_reward + 0.2 * format_reward
-    print(f' [DEBUG] query={extra_info["question"]}, {ground_truth=}, {final_answer=}, {acc_reward=}, {format_reward=}')
+    # print(f' [DEBUG] query={extra_info["question"]}, {ground_truth=}, {final_answer=}, {acc_reward=}, {format_reward=}')
     return {
         "score": final_score,
         "acc": acc_reward,

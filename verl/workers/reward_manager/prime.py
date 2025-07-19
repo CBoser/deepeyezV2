@@ -16,6 +16,7 @@ import asyncio
 from concurrent.futures import ProcessPoolExecutor
 from functools import partial
 from typing import Callable, Optional
+from collections import defaultdict
 
 import psutil
 import torch
@@ -26,7 +27,7 @@ from verl.utils.reward_score import default_compute_score
 from verl.workers.reward_manager import register
 
 
-async def single_compute_score(evaluation_func, completion, reference, task, task_extra_info, executor, timeout=300.0):
+async def single_compute_score(evaluation_func, completion, reference, task, task_extra_info, executor, timeout=None):
     loop = asyncio.get_running_loop()
     try:
         # Ensure process_completion is called properly
@@ -43,12 +44,14 @@ async def single_compute_score(evaluation_func, completion, reference, task, tas
 async def parallel_compute_score_async(evaluation_func, completions, references, tasks, extra_info=None, num_processes=64):
     if extra_info is None:
         extra_info = [None] * len(tasks)
+
     scores = []
+    print(f' [DEBUG prime] start running reward_fn on {num_processes} processes...')
     with ProcessPoolExecutor(max_workers=num_processes) as executor:
         # to prevent very occasional starvation caused by some anomalous programs ( like infinite loop ), the exceptions in async programs will instantly halt the evaluation, and all summoned processes will be killed.
         try:
             # Create tasks for all rows
-            tasks_async = [single_compute_score(evaluation_func, c, r, t, ei, executor, timeout=300.0) for c, r, t, ei in zip(completions, references, tasks, extra_info)]
+            tasks_async = [single_compute_score(evaluation_func, c, r, t, ei, executor, timeout=None) for c, r, t, ei in zip(completions, references, tasks, extra_info)]
             results = await asyncio.gather(*tasks_async, return_exceptions=False)
         except Exception as e:
             print(f"[Exception] async gather failed: {e}")
@@ -72,11 +75,15 @@ async def parallel_compute_score_async(evaluation_func, completions, references,
     for result, completion, reference, task in zip(results, completions, references, tasks):
         if isinstance(result, Exception) or result is None:
             # Handle failed or timed-out tasks
-            scores.append(0.0)
+            raise ValueError(f" [ERROR reward prime] {result=}")
         elif isinstance(result, (int, float, bool)):
-            scores.append(float(result))
+            resdict = {"score": float(result), "acc": float(result)}
+            scores.append(resdict)
+        elif isinstance(result, dict):
+            assert "score" in result, f" [ERROR reward prime] invalid key in {result=}"
+            scores.append(result)
         else:
-            scores.append(float(result[0]))
+            raise ValueError(f" [ERROR reward prime] unrecognized reward type : {type(result)=}, {result=}")
     return scores
 
 
@@ -101,11 +108,13 @@ class PrimeRewardManager:
         num_examine: int,
         compute_score: Optional[Callable] = None,
         reward_fn_key: str = "data_source",
+        **kwargs,
     ) -> None:
         self.tokenizer = tokenizer
         self.num_examine = num_examine  # the number of batches of decoded responses to print to the console
         self.compute_score = compute_score or default_compute_score
         self.reward_fn_key = reward_fn_key
+        self.num_workers = kwargs.get("num_workers", 16)
 
     def verify(self, data):
         """
@@ -113,41 +122,48 @@ class PrimeRewardManager:
         """
         # batched scoring
         prompt_ids = data.batch["prompts"]
-
+        prompt_length = prompt_ids.shape[-1]
         response_ids = data.batch["responses"]
-        sequences_str = self.tokenizer.batch_decode(response_ids, skip_special_tokens=True)
+        valid_response_length = data.batch["attention_mask"][:, prompt_length:].sum(dim=-1)
+
+        sequences_str = []
+        for i in range(len(data)):
+            valid_response_ids = response_ids[i, :valid_response_length[i].item()]
+            response_str = self.tokenizer.decode(valid_response_ids)
+            sequences_str.append(response_str)
+
         ground_truth = [data_item.non_tensor_batch["reward_model"]["ground_truth"] for data_item in data]
         data_sources = data.non_tensor_batch[self.reward_fn_key]
         extra_info = data.non_tensor_batch.get("extra_info", None)
 
         assert len(sequences_str) == len(ground_truth) == len(data_sources)
-        try:
-            scores = run_reward_scoring(
-                self.compute_score,
-                completions=sequences_str,
-                references=ground_truth,
-                tasks=data_sources,
-                extra_info=extra_info,
-                num_processes=64,
-            )
-        except asyncio.TimeoutError:
-            print("[Timeout] Global reward scoring timed out. Setting all as 0.")
-            scores = [0.0 for _ in range(len(sequences_str))]
-        except Exception as e:
-            print(f"[Error] Unexpected error during scoring. Setting all as 0. {e}")
-            scores = [0.0 for _ in range(len(sequences_str))]
-        data.batch["acc"] = torch.tensor(scores, dtype=torch.float32, device=prompt_ids.device)
+        scores = run_reward_scoring(
+            self.compute_score,
+            completions=sequences_str,
+            references=ground_truth,
+            tasks=data_sources,
+            extra_info=extra_info,
+            num_processes=self.num_workers,
+        )
+
+        # except asyncio.TimeoutError:
+        #     print("[Timeout] Global reward scoring timed out. Setting all as 0.")
+        #     scores = [0.0 for _ in range(len(sequences_str))]
+        # except Exception as e:
+        #     print(f"[Error] Unexpected error during scoring. Setting all as 0. {e}")
+        #     scores = [0.0 for _ in range(len(sequences_str))]
+        # data.batch["acc"] = torch.tensor(scores, dtype=torch.float32, device=prompt_ids.device)
         return scores
 
-    def __call__(self, data: DataProto, return_dict: bool = False):
+    def __call__(self, data: DataProto, return_dict: bool = True):
         """We will expand this function gradually based on the available datasets"""
 
         # If there is rm score, we directly return rm score. Otherwise, we compute via rm_score_fn
-        if "rm_scores" in data.batch.keys():
-            return data.batch["rm_scores"]
+        # if "rm_scores" in data.batch.keys():
+        #     return data.batch["rm_scores"]
 
         reward_tensor = torch.zeros_like(data.batch["responses"], dtype=torch.float32)
-
+        reward_extra_info = defaultdict(list)
         already_print_data_sources = {}
 
         # batched scoring
@@ -156,23 +172,31 @@ class PrimeRewardManager:
 
         response_ids = data.batch["responses"]
         valid_response_length = data.batch["attention_mask"][:, prompt_length:].sum(dim=-1)
-        sequences_str = self.tokenizer.batch_decode(response_ids, skip_special_tokens=True)
-        data_sources = data.non_tensor_batch["data_source"]
+        # sequences_str = self.tokenizer.batch_decode(response_ids, skip_special_tokens=True)
+        # data_sources = data.non_tensor_batch["data_source"]
 
         scores = self.verify(data)
-
         for i in range(len(data)):
-            data_source = data_sources[i]
-            reward_tensor[i, valid_response_length[i].item() - 1] = scores[i]
+            # data_source = data_sources[i]
+            score_dict = scores[i]
+            reward_tensor[i, valid_response_length[i].item() - 1] = score_dict["score"]
 
-            if data_source not in already_print_data_sources:
-                already_print_data_sources[data_source] = 0
+            for key, value in score_dict.items():
+                if key == "score":
+                    continue
+                reward_extra_info[key].append(value)
 
-            if already_print_data_sources[data_source] < self.num_examine:
-                already_print_data_sources[data_source] += 1
-                print(sequences_str)
+            # if data_source not in already_print_data_sources:
+            #     already_print_data_sources[data_source] = 0
+
+            # if already_print_data_sources[data_source] < self.num_examine:
+            #     already_print_data_sources[data_source] += 1
+            #     print(sequences_str)
 
         if return_dict:
-            return {"reward_tensor": reward_tensor}
+            return {
+                "reward_tensor": reward_tensor,
+                "reward_extra_info": reward_extra_info,
+            }
         else:
             return reward_tensor
