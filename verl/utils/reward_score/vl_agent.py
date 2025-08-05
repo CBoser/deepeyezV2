@@ -11,7 +11,7 @@ openai_api_key = "EMPTY"
 openai_api_base_list = [
     # "http://172.30.52.123:8000/v1",
     # "http://10.39.3.123:18901/v1",
-    os.environ.get("LLM_AS_A_JUDGE_BASE", "http://10.39.20.149:18901/v1"),
+    os.environ.get("LLM_AS_A_JUDGE_BASE", "http://10.39.2.72:18901/v1"),
 ]
 
 client_list = []
@@ -198,10 +198,10 @@ def compute_score(predict_str: str, ground_truth: str, extra_info=None) -> float
     if count_think_1 == 0 or count_think_2 == 0:
         is_format_error = True
 
-    count_vision_1 = predict_str.count("<|vision_start|><|image_pad|>")
-    count_vision_2 = predict_str.count("<|image_pad|><|vision_end|>")
-    if count_vision_1 != count_vision_2:
-        is_format_error = True
+    count_vision_1 = predict_str.count("<tool_response>")
+    # count_vision_2 = predict_str.count("</tool_response>")
+    # if count_vision_1 != count_vision_2:
+    #     is_format_error = True
 
     predict_no_think = predict_str.split('</think>')[-1].strip()
     count_answer_1 = predict_no_think.count("<answer>")
@@ -422,10 +422,10 @@ def compute_score_math(predict_str: str, ground_truth: str, extra_info=None) -> 
     if count_think_1 == 0 or count_think_2 == 0:
         is_format_error = True
 
-    count_vision_1 = predict_str.count("<|vision_start|><|image_pad|>")
-    count_vision_2 = predict_str.count("<|image_pad|><|vision_end|>")
-    if count_vision_1 != count_vision_2:
-        is_format_error = True
+    count_vision_1 = predict_str.count("<tool_response>")
+    # count_vision_2 = predict_str.count("<|image_pad|><|vision_end|>")
+    # if count_vision_1 != count_vision_2:
+    #     is_format_error = True
 
     predict_no_think = predict_str.split('</think>')[-1].strip()
     count_answer_1 = predict_no_think.count("<answer>")
@@ -451,7 +451,7 @@ def compute_score_math(predict_str: str, ground_truth: str, extra_info=None) -> 
     tool_reward = 1.0 if count_vision_1 > 0 and acc_reward > 0.5 else 0.0
     format_reward = -1.0 if is_format_error else 0.0
     # print(f' [DEBUG] query={extra_info["question"]}, {ground_truth=}, {answer_text=}, {acc_reward=}, {format_reward=}')
-    final_score = 1.6 * acc_reward + 0.2 * format_reward + 0.4 * tool_reward
+    final_score = 2.0 * acc_reward + 0.2 * format_reward # + 0.4 * tool_reward
 
     return {
         "score": final_score,
@@ -650,7 +650,7 @@ def compute_score_math_with_boxed(predict_str: str, ground_truth: str, extra_inf
     }
 
 
-def compute_score_acc(predict_str: str, ground_truth: str, extra_info=None) -> float:
+def compute_score_acc(predict_str: str, ground_truth: str, extra_info=None, **kwargs) -> float:
     model_answer = ""
     predict_no_think = predict_str.split('</think>')[-1].strip()
     answer_text = extract_answer(predict_no_think)
@@ -659,6 +659,8 @@ def compute_score_acc(predict_str: str, ground_truth: str, extra_info=None) -> f
     else:
         model_answer = answer_text
         if model_answer == ground_truth:
+            acc_reward = 1.0
+        elif model_answer.strip().lower().startswith(ground_truth):
             acc_reward = 1.0
         else:
             question_text = extra_info['question']
@@ -700,6 +702,17 @@ def compute_score_acc(predict_str: str, ground_truth: str, extra_info=None) -> f
                         print(f' [WARNING #2] resp format error {response=}')
                         continue
 
+    # with open("/cpfs/user/fengyuan/code/github/DeepEyes-CodeRL/logs/reward_info.json", "a", encoding='utf-8') as f:
+    #     import json
+    #     outdict = {
+    #         "data_source": kwargs.get("data_source", "[unknown dataset]"),
+    #         "query": extra_info['question'], 
+    #         "response": predict_str, 
+    #         "ground_truth": ground_truth, 
+    #         "acc": acc_reward,
+    #     }
+    #     f.write(json.dumps(outdict, ensure_ascii=False) + '\n')
+
     return {
         "score": acc_reward,
         "acc": acc_reward,
@@ -735,7 +748,7 @@ if __name__ == '__main__':
         'id': 0, 
         'image': '',
         'pred_ans': predict_str, 
-        'question': '<image>In the diagram, $ABDE$ is a rectangle, $\\triangle BCD$ is equilateral, and $AD$ is parallel to $BC$. Also, $AE = 2x$ for some real number $x$.\n\nDetermine the length of $AB$ in terms of $x$.'
+        'question': 'What is the number displayed above the entrance where the woman is standing?'
     }
 
     score = compute_common_reasoning(predict_str, ground_truth, extra_info)

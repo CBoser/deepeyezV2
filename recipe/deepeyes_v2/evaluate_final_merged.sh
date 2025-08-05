@@ -15,15 +15,15 @@ DATA_TRAIN_XINCE=/cpfs/user/fengyuan/verl_data/minghao_data/train_xince_acc_acc_
 DATA_TRAIN_GEOGUESSR=/cpfs/user/fengyuan/verl_data/minghao_data/seekworld_train_acc_acc_v2.parquet
 
 # benchmark data
-DATA_TEST_VSTAR=/cpfs/user/fengyuan/benchmarks/eval_parquet/vstar-test.parquet
-DATA_TEST_SEEKWORLD=/cpfs/user/fengyuan/benchmarks/eval_parquet/seekworld-test.parquet
-DATA_TEST_MMSEARCH=/cpfs/user/fengyuan/benchmarks/eval_parquet/mmsearch-test.parquet
+DATA_TEST_VSTAR=/cpfs/user/fengyuan/benchmarks/eval_parquet/vstar-test-filtered.parquet
+DATA_TEST_SEEKWORLD=/cpfs/user/fengyuan/benchmarks/eval_parquet/seekworld-test-filtered.parquet
+DATA_TEST_MMSEARCH=/cpfs/user/fengyuan/benchmarks/eval_parquet/mmsearch-test-filtered-v3.parquet
 DATA_TEST_BROWSECOMP_OPENAI=/cpfs/user/fengyuan/benchmarks/eval_parquet/openai-browsecomp-test.parquet
-DATA_TEST_BROWSECOMP_ZH=/cpfs/user/fengyuan/benchmarks/eval_parquet/browsecomp-zh-test.parquet
-DATA_TEST_CHINESE_SIMPLEQA=/cpfs/user/fengyuan/benchmarks/eval_parquet/chinese_simpleqa-test.parquet
+DATA_TEST_BROWSECOMP_ZH=/cpfs/user/fengyuan/benchmarks/eval_parquet/browsecomp-zh-test-v3.parquet
+DATA_TEST_CHINESE_SIMPLEQA=/cpfs/user/fengyuan/benchmarks/eval_parquet/chinese_simpleqa-test-v3.parquet
 DATA_TEST_SIMPLEQA_OPENAI=/cpfs/user/fengyuan/benchmarks/eval_parquet/openai-simpleqa-test.parquet
 DATA_TEST_SIMPLE_VQA=/cpfs/user/fengyuan/benchmarks/eval_parquet/simple-vqa-test.parquet
-DATA_TEST_ZERO_BENCH=/cpfs/user/fengyuan/benchmarks/eval_parquet/zero-bench-test.parquet
+DATA_TEST_ZERO_BENCH=/cpfs/user/fengyuan/benchmarks/eval_parquet/zero-bench-test-filtered.parquet
 DATA_TEST_OCR_REASONING=/cpfs/user/fengyuan/benchmarks/eval_parquet/ocr-reasoning-test.parquet
 DATA_TEST_VISULOGIC=/cpfs/user/fengyuan/benchmarks/eval_parquet/visulogic-test.parquet
 DATA_TEST_AIME=/cpfs/user/fengyuan/benchmarks/eval_parquet/aime-test.parquet
@@ -32,6 +32,13 @@ DATA_TEST_AIME=/cpfs/user/fengyuan/benchmarks/eval_parquet/aime-test.parquet
 DATA_TEST_SIMPLEQA_OPENAI_SPLIT1=/cpfs/user/fengyuan/benchmarks/eval_parquet/openai-simpleqa-test_split1.parquet
 DATA_TEST_SIMPLEQA_OPENAI_SPLIT2=/cpfs/user/fengyuan/benchmarks/eval_parquet/openai-simpleqa-test_split2.parquet
 
+# hrbench-4k and 8k, different tool version
+DATA_TEST_HRBENCH=/cpfs/user/fengyuan/benchmarks/hrbench/dump/hrbench-ocr.parquet
+DATA_TEST_HRBENCH_TOOLS=/cpfs/user/fengyuan/benchmarks/hrbench/dump/hrbench-ocr-with_rotate_tool.parquet
+DATA_TEST_HRBENCH_ROT=/cpfs/user/fengyuan/benchmarks/hrbench/dump/hrbench-ocr-rot.parquet
+DATA_TEST_HRBENCH_ROT_TOOLS=/cpfs/user/fengyuan/benchmarks/hrbench/dump/hrbench-ocr-rot-with_rotate_tool.parquet
+DATA_TEST_VSTAR_TOOLS=/cpfs/user/fengyuan/benchmarks/eval_parquet/vstar-test-rot.parquet
+
 CUSTOM_STOP='["</tool_call>"]'
 LOSS_AGG_MODE="token-mean"
 export WORKING_DIR=${WORKING_DIR:-"${PWD}"}
@@ -39,21 +46,22 @@ export RUNTIME_ENV=${RUNTIME_ENV:-"${WORKING_DIR}/verl/trainer/runtime_env.yaml"
 
 REF_MODEL_PATH=/cpfs/user/fengyuan/backbone/qwen25/Qwen2.5-VL-7B-Instruct
 # REF_MODEL_PATH=/cpfs/user/fengyuan/backbone/qwen25/Qwen2.5-VL-32B-Instruct
-
 # REF_MODEL_PATH=/diancpfs/user/fengyuan/verl_checkpoints/deepeyes-dapo/dapo_7b_debug_v16/global_step_32/actor/huggingface
 # REF_MODEL_PATH=/diancpfs/user/fengyuan/verl_checkpoints/deepeyes-dapo/dapo_32b_debug_v1/global_step_152/actor/huggingface
-REF_MODEL_PATH=/diancpfs/user/fengyuan/verl_checkpoints/xhs-deepeyes/search_crop_debug_v8/global_step_136/actor/huggingface
+# REF_MODEL_PATH=/diancpfs/user/fengyuan/verl_checkpoints/xhs-deepeyes/qwen_7b_agent_merged_v19/global_step_160/actor/huggingface
+# REF_MODEL_PATH=/diancpfs/user/fengyuan/verl_checkpoints/deepeyes-dapo/reproduce_v1_7b_v0/global_step_104/actor/huggingface
+REF_MODEL_PATH=/diancpfs/user/fengyuan/verl_checkpoints/xhs-deepeyes/qwen_32b_agent_merged_v10/global_step_104/actor/huggingface
 
-VAL_FILES='[${DATA_TEST_VSTAR},${DATA_TEST_SEEKWORLD},${DATA_TEST_MMSEARCH},${DATA_TEST_OCR_REASONING},${DATA_TEST_VISULOGIC},${DATA_TEST_ZERO_BENCH},${DATA_TEST_SIMPLE_VQA},${DATA_TEST_BROWSECOMP_OPENAI},${DATA_TEST_BROWSECOMP_ZH},${DATA_TEST_CHINESE_SIMPLEQA},${DATA_TEST_SIMPLEQA_OPENAI}]]'
+# VAL_FILES='[${DATA_TEST_VSTAR},${DATA_TEST_SEEKWORLD},${DATA_TEST_MMSEARCH},${DATA_TEST_OCR_REASONING},${DATA_TEST_VISULOGIC},${DATA_TEST_ZERO_BENCH},${DATA_TEST_SIMPLE_VQA},${DATA_TEST_BROWSECOMP_OPENAI},${DATA_TEST_BROWSECOMP_ZH},${DATA_TEST_CHINESE_SIMPLEQA},${DATA_TEST_SIMPLEQA_OPENAI}]]'
 
 PYTHONUNBUFFERED=1 python3 -m recipe.deepeyes_v2.main_dapo \
     +debug=False \
     +vs_debug=False \
-    data.train_files=[${DATA_TRAIN_GEOGUESSR}] \
-    data.val_files=[${DATA_TEST_MMSEARCH}] \
+    data.train_files=[${DATA_TRAIN_XINCE}] \
+    data.val_files=[${DATA_TEST_SEEKWORLD}] \
     data.train_batch_size=32 \
-    data.max_prompt_length=20480 \
-    data.max_response_length=12288 \
+    data.max_prompt_length=8192 \
+    data.max_response_length=20480 \
     data.return_raw_chat=True \
     algorithm.adv_estimator=grpo \
     algorithm.use_kl_in_reward=False \
@@ -90,7 +98,7 @@ PYTHONUNBUFFERED=1 python3 -m recipe.deepeyes_v2.main_dapo \
     actor_rollout_ref.ref.fsdp_config.param_offload=True \
     actor_rollout_ref.rollout.agent.activate_agent=True \
     actor_rollout_ref.rollout.agent.tool_name_key=env_name \
-    actor_rollout_ref.rollout.agent.single_response_max_tokens=8192 \
+    actor_rollout_ref.rollout.agent.single_response_max_tokens=20480 \
     actor_rollout_ref.rollout.agent.max_turns=16 \
     actor_rollout_ref.rollout.agent.concurrent_workers=1 \
     actor_rollout_ref.rollout.agent.custom_stop=${CUSTOM_STOP} \
@@ -103,9 +111,7 @@ PYTHONUNBUFFERED=1 python3 -m recipe.deepeyes_v2.main_dapo \
     +trainer.val_only=True \
     trainer.n_gpus_per_node=8 \
     trainer.nnodes=${WORLD_SIZE} \
-    trainer.save_freq=8 \
-    trainer.test_freq=8 \
+    trainer.save_freq=8000 \
+    trainer.test_freq=8000 \
     trainer.project_name=${PROJECT_NAME} \
-    trainer.experiment_name=${EXPERIMENT_NAME} \
-    trainer.default_local_dir=${SAVE_CHECKPOINT_DIR}/${PROJECT_NAME}/${EXPERIMENT_NAME} \
-    trainer.total_epochs=32 2>&1 | tee ./logs/${EXPERIMENT_NAME}.log
+    trainer.experiment_name=${EXPERIMENT_NAME} 2>&1 | tee ./logs/${EXPERIMENT_NAME}.log

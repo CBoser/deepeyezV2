@@ -28,6 +28,7 @@ from tqdm import tqdm
 from verl import DataProto
 from verl.trainer.ppo.core_algos import agg_loss
 from verl.trainer.ppo.metric_utils import (
+    compute_agent_metrics,
     compute_data_metrics,
     compute_throughout_metrics,
     compute_timing_metrics,
@@ -35,7 +36,6 @@ from verl.trainer.ppo.metric_utils import (
 )
 from verl.utils.debug import marked_timer as _timer
 from verl.trainer.ppo.ray_trainer import AdvantageEstimator, RayPPOTrainer, apply_kl_penalty, compute_advantage, compute_response_mask
-from verl.trainer.ppo.metric_utils import compute_agent_metrics
 
 
 def get_reward_gain(reward_list, temp=0.25):
@@ -249,7 +249,7 @@ class RayDAPOTrainer(RayPPOTrainer):
                         else:
                             # Align the batch
                             traj_bsz = self.config.data.train_batch_size * self.config.actor_rollout_ref.rollout.n
-                            print(f' [DEBUG DAPO] {len(batch)=} >= {traj_bsz=}, break...')
+                            print(f" [DEBUG DAPO] {len(batch)=} >= {traj_bsz=}, break...")
                             batch = batch[:traj_bsz]
 
                     # === Updating ===

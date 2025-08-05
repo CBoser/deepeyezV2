@@ -21,8 +21,9 @@ class ImageSearch(ToolBase):
             name=self.name,
         )
         self.chatml_history = []
-        self.multi_modal_data = None  # To store the current image being processed
+        self.multi_modal_data = None    # To store the current image being processed
         self.is_multi_modal = False
+        self.max_pixels = 1280 * 720    # 720p, 3 * max_pixels images cost roughly 3.5k tokens
 
     def extract_answer(self, action_string: str) -> Dict[str, any]:
         answer = re.findall(r'<answer>(.*?)</answer>', action_string, re.DOTALL)
@@ -88,7 +89,7 @@ class ImageSearch(ToolBase):
                 obs_text = "<image>"
                 obs_image_list = [rotated_img]
 
-            elif tool_name in ["text_search", "text_search_bing"]:
+            elif tool_name in ["text_search_xhs", "text_search_ddg", "text_search_bing"]:
                 observation = execute_text_search(tool_call)
                 obs_text, obs_image_list = self._observation2messages(observation)
 
@@ -109,6 +110,7 @@ class ImageSearch(ToolBase):
                 raise ValueError(f"FUNCTION NAME {tool_name} NOT ALLOWED")
 
             # Prepare the observation
+            obs_image_list = [self.maybe_resize_image(this_img) for this_img in obs_image_list]
             if len(obs_image_list) > 0:
                 obs = {
                     "prompt": "<|im_end|>\n<|im_start|>user\n<tool_response>" + obs_text + "</tool_response><|im_end|>\n<|im_start|>assistant\n<think>",
@@ -128,7 +130,7 @@ class ImageSearch(ToolBase):
         except Exception as e:
             # Return an error observation if something goes wrong
             print(f'[ERROR] Execute WRONG - {str(e)} {action_string=}')
-            obs = "<|im_end|>\n<|im_start|>user\n" + f"Error: {str(e)}</tool_response>" + "<|im_end|>\n<|im_start|>assistant\n<think>"
+            obs = "<|im_end|>\n<|im_start|>user\n" + f"Error: {str(e)}" + "<|im_end|>\n<|im_start|>assistant\n<think>"
             reward = 0.0  # No reward for failed execution
             done = False
             info = {"error": str(e), "status": "failed"}
@@ -154,7 +156,7 @@ class ImageSearch(ToolBase):
 id: {idx}
 title: {obs['title']}
 content:\n{obs['content']}
-likes: {obs['likes']}
+url: {obs['siteName']}
 publish_time: {obs['publish_time']}
 """
             cover_url = obs.get("coverUrl", "")
@@ -184,6 +186,20 @@ publish_time: {obs['publish_time']}
             return None
         # ToolBase.shared_mapping[image_url] = image
         return image
+
+    def maybe_resize_image(self, input_image):
+        output_image = input_image.convert("RGB")
+        height = output_image.height
+        width = output_image.width
+        num_pixels = height * width
+        if num_pixels <= self.max_pixels:
+            return output_image
+        
+        ratio = float(self.max_pixels / num_pixels)
+        new_height = ceil(height * ratio)
+        new_width = ceil(width * ratio)
+        output_image = output_image.resize((new_width, new_height), Image.Resampling.LANCZOS)
+        return output_image
 
     def validate_bbox(self, left, top, right, bottom):
         try:

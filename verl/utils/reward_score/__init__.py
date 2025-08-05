@@ -88,13 +88,9 @@ def default_compute_score(data_source, solution_str, ground_truth, extra_info=No
         from . import agent
         res = agent.compute_score_eval(solution_str, ground_truth)
 
-    elif data_source in ['vstar', 'vl_agent', 'chart', 'browsecomp', 'seekworld']:
+    elif data_source in ["vstar", "vl_agent", "chart", "browsecomp", "r1-searcher-v3", "seekworld"]:
         from . import vl_agent
         res = vl_agent.compute_score(solution_str, ground_truth, extra_info)
-
-    # elif data_source in ['seekworld', 'xince']:
-    #     from . import vl_agent
-    #     res = vl_agent.compute_common_reasoning(solution_str, ground_truth, extra_info)
 
     elif data_source in ["skywork-math", "revisual-r1"]:
         from . import vl_agent
@@ -104,9 +100,14 @@ def default_compute_score(data_source, solution_str, ground_truth, extra_info=No
         from . import vl_agent
         res = vl_agent.compute_score_math(solution_str, ground_truth, extra_info)
 
-    elif data_source in ['seekworld-test', 'vstar-test', 'visulogic-test', 'ocr_reasoning-test']:
+    elif data_source in [
+        'vstar-test', 
+        'seekworld-test', 
+        'visulogic-test', 
+        'ocr_reasoning-test',
+    ] or data_source.startswith("hrbench-test"):
         from . import vl_agent
-        res = vl_agent.compute_score_acc(solution_str, ground_truth, extra_info)
+        res = vl_agent.compute_score_acc(solution_str, ground_truth, extra_info, data_source=data_source)
 
     elif data_source in ['aime24', 'aime25']:
         from . import vl_agent
@@ -120,9 +121,10 @@ def default_compute_score(data_source, solution_str, ground_truth, extra_info=No
         'browsecomp-openai-test', 
         'simple-vqa-test', 
         'zero-bench-test',
+        'zero-bench-no-tools',
     ]:
         from . benchmark import evaluate_chinese_simpleqa, evaluate_browsecomp_zh, evaluate_openai_brosecomp_hle, evaluate_openai_simpleqa
-        if data_source in ['simpleqa-openai-test', 'mmsearch-test', 'zero-bench-test']:
+        if data_source in ['simpleqa-openai-test', 'mmsearch-test', 'zero-bench-test', 'zero-bench-no-tools']:
             res = evaluate_openai_simpleqa(solution_str, ground_truth, extra_info)
         elif data_source in ['chinese_simpleqa-test', 'simple-vqa-test']:
             res = evaluate_chinese_simpleqa(solution_str, ground_truth, extra_info)

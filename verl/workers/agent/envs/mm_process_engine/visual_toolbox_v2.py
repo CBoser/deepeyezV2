@@ -93,7 +93,7 @@ class VisualToolBoxV2(ToolBase):
                 angle = args["angle"]
                 # img = Image.open(image_path)
                 img = self.multi_modal_data['image'][0]
-                rotated_img = img.rotate(angle)
+                rotated_img = img.rotate(angle, expand=True)
                 current_image = rotated_img
                 
             else:
@@ -111,7 +111,7 @@ class VisualToolBoxV2(ToolBase):
         except Exception as e:
             # Return an error observation if something goes wrong
             # print(f'[ERROR] Execute WRONG - {str(e)} {action_string=}')
-            obs = "<|im_end|>\n<|im_start|>user\n" + f"Error: {str(e)}</tool_response>" + "<|im_end|>\n<|im_start|>assistant\n<think>"
+            obs = "<|im_end|>\n<|im_start|>user\n" + f"Error: {str(e)}" + "<|im_end|>\n<|im_start|>assistant\n<think>"
             reward = 0.0  # No reward for failed execution
             done = False
             info = {"error": str(e), "status": "failed"}

@@ -5,11 +5,55 @@ from io import BytesIO
 from PIL import Image
 from tqdm import tqdm
 import random
+import json
 import glob
 import io
 import time
 
+from eas_prediction import PredictClient, ENDPOINT_TYPE_DIRECT, StringRequest
+
 GLOBAL_TIMEOUT = 30
+
+class DDGSSearchProxy:
+    DUCKDUCKGO_URL = "http://duckduckgo.1781574661016173.vpc.ap-southeast-1.pai-eas.aliyuncs.com/search"
+    DUCKDUCKGO_TOKEN = 'MDllN2FmNzgxMGIzM2VjMDUxYjVlZGZhYWFhMjg0YTllYmNlNDFlNg=='
+    MAX_CONN = 256
+
+    def __init__(self):
+        client = PredictClient(
+            endpoint="pai-eas-vpc.ap-southeast-1.aliyuncs.com",
+            service_name="duckduckgo",
+            custom_url=self.DUCKDUCKGO_URL,
+        )
+        client.set_content_type('application/json')
+        client.set_token(self.DUCKDUCKGO_TOKEN)
+        client.set_endpoint_type(ENDPOINT_TYPE_DIRECT)
+        client.set_max_connection_count(self.MAX_CONN)
+        client.set_timeout(GLOBAL_TIMEOUT * 1000)
+        client.init()
+        self.client = client
+
+    def search(self, query, size, max_retry=8):
+        payload = {
+            "query": query,
+            "size": size,
+            "use_proxy": True,
+        }
+        result = {}
+        for it in range(max_retry):
+            try:
+                response = self.client.predict(StringRequest(json.dumps(payload)))
+                result = json.loads(response.response_data)
+                break
+            except Exception as err:
+                print(f' [ERROR ddgs] {err=} -- continue for {it}')
+                continue
+        # print(f' [DEBUG ddgs] {type(result)=}, {result=}')
+        return result.get("data", [])
+
+
+ddgs = DDGSSearchProxy()
+print(f' [DEBUG ddgs] build ddgs proxy')
 
 def check_url_content(url):
     try:
@@ -271,7 +315,7 @@ def get_url_from_fileId(fileId, try_times=4):
 
 
 def set_default_functioncall_args(functioncall):
-    if functioncall["name"] in ["text_search", "text_search_bing"]:
+    if functioncall["name"] in ["text_search_xhs", "text_search_bing"]:
         if "size" not in functioncall:
             functioncall["arguments"]["size"] = 3
         if "snippet" not in functioncall:
@@ -280,6 +324,9 @@ def set_default_functioncall_args(functioncall):
             functioncall["arguments"]["filters"] = 1
         if "mkt" not in functioncall:
             functioncall["arguments"]["mkt"] = ""
+    elif functioncall["name"] == "text_search_ddg":
+        if "size" not in functioncall:
+            functioncall["arguments"]["size"] = 10
     else:
         raise ValueError(f"Unknown function name: {functioncall['name']}")
     return functioncall
@@ -288,7 +335,7 @@ def set_default_functioncall_args(functioncall):
 def execute_text_search(functioncall):
     functioncall = set_default_functioncall_args(functioncall)
     observation = []
-    if functioncall["name"] == "text_search":
+    if functioncall["name"] == "text_search_xhs":
         search_key = functioncall["arguments"]["query"]
         function_results = mm_web_search(
             query=search_key,
@@ -314,6 +361,20 @@ def execute_text_search(functioncall):
         )
         for result in function_results:
             result["search_key"] = search_key
+        observation = function_results
+
+    if functioncall["name"] == "text_search_ddg":
+        search_key = str(functioncall["arguments"]["query"])
+        function_results = ddgs.search(
+            search_key, 
+            size=functioncall["arguments"]["size"]
+        )
+        for result in function_results:
+            result["search_key"] = search_key
+            result["siteName"] = result.pop("link", "")
+            result["likes"] = 0
+            result["publish_time"] = result.pop("date", "null")
+            result["content"] = result.pop("snippet", "null")
         observation = function_results
         
     return observation
@@ -409,10 +470,17 @@ def unit_test_image_api2():
 
 
 if __name__ == "__main__":
-    # obs = mm_web_search("初恋男友忽冷忽热 分分合合的感情还能持续多久", filter=3)
-    # for line in obs:
-    #     print(line["relevanceScore"])
-    #     print(line["url"])
+    test_case = {
+        "name": "text_search_ddg",
+        "arguments": {
+            "query": "初恋男友忽冷忽热 分分合合的感情还能持续多久",
+        }
+    }
 
-    unit_test_image_api()
+    obs = execute_text_search(test_case)
+    for line in obs:
+        linestr = json.dumps(line, ensure_ascii=False, indent=2)
+        print(linestr)
+
+    # unit_test_image_api()
     # unit_test_image_api2()

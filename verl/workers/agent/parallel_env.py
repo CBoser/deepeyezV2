@@ -71,6 +71,8 @@ def _merge_multi_modal_inputs(mm_input, other):
             merged_value = np.concatenate([mm_value, other_value], axis=0)
         elif isinstance(mm_value, torch.Tensor) and isinstance(other_value, torch.Tensor):
             merged_value = torch.cat([mm_value, other_value], dim=0)
+        elif mm_value is None or other_value is None:
+            continue
         else:
             raise ValueError(f"Invalid {type(mm_value)=}, {type(other_value)=}")
 
@@ -86,15 +88,15 @@ def _preprocess_multi_modal_inputs(prompt_str, processor, **kwargs):
     input_mm_data = kwargs.get("multi_modal_data", {"image": []})
     
     image_info_list = []
-    for img in input_mm_data["image"]:
-        buf = io.BytesIO()
-        img.save(buf, format='PNG')
-        png_bytes = buf.getvalue()
-        buf.close()
-        img_info = {"bytes": png_bytes}
-        image_info_list.append(img_info)
+    # for img in input_mm_data["image"]:
+    #     buf = io.BytesIO()
+    #     img.save(buf, format='PNG')
+    #     png_bytes = buf.getvalue()
+    #     buf.close()
+    #     img_info = {"bytes": png_bytes}
+    #     image_info_list.append(img_info)
 
-    input_mm_data["image"] = [process_image(img) for img in image_info_list]
+    # input_mm_data["image"] = [process_image(img) for img in image_info_list]
     model_inputs = processor(text=[vllm_input_prompt], images=input_mm_data["image"], return_tensors="pt")
     input_ids = model_inputs.pop("input_ids")[0]
     attention_mask = model_inputs.pop("attention_mask")[0]

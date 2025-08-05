@@ -1,7 +1,7 @@
 set -x
 
 PROJECT_NAME="xhs-deepeyes"
-EXPERIMENT_NAME="qwen_7b_agent_merged_v19"
+EXPERIMENT_NAME="qwen_7b_agent_merged_v24"
 
 export SAVE_CHECKPOINT_DIR=/diancpfs/user/fengyuan/verl_checkpoints
 # export VLLM_ATTENTION_BACKEND=XFORMERS # vllm + qwen2-7b with flash_attn has some issues
@@ -13,22 +13,23 @@ DATA_TRAIN_V08_SPLIT2=/cpfs/user/fengyuan/benchmarks/train_parquet/data_v0.8_vis
 DATA_TRAIN_THINKLITE=/cpfs/user/fengyuan/benchmarks/train_parquet/data_thinklite_reasoning_function_call_acc_v2.parquet
 DATA_TRAIN_THINKLITE_NO_TOOL=/cpfs/user/fengyuan/benchmarks/train_parquet/data_thinklite_v0-filtered.parquet
 DATA_TRAIN_SEEKWORLD=/cpfs/user/fengyuan/benchmarks/train_parquet/seekworld_train_acc_acc_v2-filtered.parquet
-DATA_TRAIN_BROWSECOMP=/cpfs/user/fengyuan/benchmarks/train_parquet/browse_comp_xhs.parquet
+DATA_TRAIN_BROWSECOMP=/cpfs/user/fengyuan/benchmarks/train_parquet/browse_comp_xhs-v3.parquet
 DATA_TRAIN_PHYSICS=/cpfs/user/fengyuan/benchmarks/train_parquet/physreason-train-filtered.parquet
 DATA_TRAIN_REVISUAL_MMRL=/cpfs/user/fengyuan/benchmarks/train_parquet/revisual_mmrl-train-filtered.parquet
 DATA_TRAIN_REVISUAL_TEXTRL=/cpfs/user/fengyuan/benchmarks/train_parquet/revisual_textrl-train.parquet
 DATA_TRAIN_SKYWORK_MATH=/cpfs/user/fengyuan/benchmarks/train_parquet/skywork-math-train.parquet
 DATA_TRAIN_XINCE=/cpfs/user/fengyuan/benchmarks/train_parquet/xince-train-filtered.parquet
+DATA_TRAIN_R1_SEARCHER=/cpfs/user/fengyuan/benchmarks/train_parquet/r1-searcher-v3.parquet
 
 # benchmark data
 DATA_TEST_VSTAR=/cpfs/user/fengyuan/benchmarks/eval_parquet/vstar-test-filtered.parquet
 DATA_TEST_SEEKWORLD=/cpfs/user/fengyuan/benchmarks/eval_parquet/seekworld-test-filtered.parquet
-DATA_TEST_MMSEARCH=/cpfs/user/fengyuan/benchmarks/eval_parquet/mmsearch-test-filtered.parquet
-DATA_TEST_BROWSECOMP_OPENAI=/cpfs/user/fengyuan/benchmarks/eval_parquet/openai-browsecomp-test.parquet
-DATA_TEST_BROWSECOMP_ZH=/cpfs/user/fengyuan/benchmarks/eval_parquet/browsecomp-zh-test.parquet
-DATA_TEST_CHINESE_SIMPLEQA=/cpfs/user/fengyuan/benchmarks/eval_parquet/chinese_simpleqa-test.parquet
-DATA_TEST_SIMPLEQA_OPENAI=/cpfs/user/fengyuan/benchmarks/eval_parquet/openai-simpleqa-test.parquet
-DATA_TEST_SIMPLE_VQA=/cpfs/user/fengyuan/benchmarks/eval_parquet/simple-vqa-test-filtered.parquet
+DATA_TEST_MMSEARCH=/cpfs/user/fengyuan/benchmarks/eval_parquet/mmsearch-test-filtered-v3.parquet
+DATA_TEST_BROWSECOMP_OPENAI=/cpfs/user/fengyuan/benchmarks/eval_parquet/openai-browsecomp-test-v3.parquet
+DATA_TEST_BROWSECOMP_ZH=/cpfs/user/fengyuan/benchmarks/eval_parquet/browsecomp-zh-test-v3.parquet
+DATA_TEST_CHINESE_SIMPLEQA=/cpfs/user/fengyuan/benchmarks/eval_parquet/chinese_simpleqa-test-v3.parquet
+DATA_TEST_SIMPLEQA_OPENAI=/cpfs/user/fengyuan/benchmarks/eval_parquet/openai-simpleqa-test-v3.parquet
+DATA_TEST_SIMPLE_VQA=/cpfs/user/fengyuan/benchmarks/eval_parquet/simple-vqa-test-filtered-v3.parquet
 DATA_TEST_ZERO_BENCH=/cpfs/user/fengyuan/benchmarks/eval_parquet/zero-bench-test-filtered.parquet
 DATA_TEST_OCR_REASONING=/cpfs/user/fengyuan/benchmarks/eval_parquet/ocr-reasoning-test-filtered.parquet
 DATA_TEST_VISULOGIC=/cpfs/user/fengyuan/benchmarks/eval_parquet/visulogic-test-filtered.parquet
@@ -43,14 +44,12 @@ LOSS_AGG_MODE="token-mean"
 export WORKING_DIR=${WORKING_DIR:-"${PWD}"}
 export RUNTIME_ENV=${RUNTIME_ENV:-"${WORKING_DIR}/verl/trainer/runtime_env.yaml"}
 
-# data.train_files=[${DATA_TRAIN_V012},${DATA_TRAIN_SEEKWORLD},${DATA_TRAIN_THINKLITE_NO_TOOL},${DATA_TRAIN_V08_SPLIT1},${DATA_TRAIN_V08_SPLIT2},${DATA_TRAIN_BROWSECOMP},${DATA_TRAIN_PHYSICS},${DATA_TRAIN_REVISUAL_MMRL},${DATA_TRAIN_REVISUAL_TEXTRL},${DATA_TRAIN_SKYWORK_MATH},${DATA_TRAIN_XINCE}] \
-
 REF_MODEL_PATH=/cpfs/user/fengyuan/backbone/qwen25/Qwen2.5-VL-7B-Instruct
 PYTHONUNBUFFERED=1 python3 -m recipe.deepeyes_v2.main_dapo \
     +debug=False \
     +vs_debug=False \
-    data.train_files=[${DATA_TRAIN_V012},${DATA_TRAIN_SEEKWORLD},${DATA_TRAIN_THINKLITE_NO_TOOL},${DATA_TRAIN_V08_SPLIT1},${DATA_TRAIN_V08_SPLIT2},${DATA_TRAIN_BROWSECOMP},${DATA_TRAIN_REVISUAL_MMRL},${DATA_TRAIN_REVISUAL_TEXTRL},${DATA_TRAIN_XINCE}] \
-    data.val_files=[${DATA_TEST_AIME},${DATA_TEST_ZERO_BENCH},${DATA_TEST_BROWSECOMP_ZH},${DATA_TEST_MMSEARCH},${DATA_TEST_SEEKWORLD},${DATA_TEST_VSTAR}] \
+    data.train_files=[${DATA_TRAIN_V012},${DATA_TRAIN_SEEKWORLD},${DATA_TRAIN_THINKLITE_NO_TOOL},${DATA_TRAIN_V08_SPLIT1},${DATA_TRAIN_V08_SPLIT2},${DATA_TRAIN_BROWSECOMP},${DATA_TRAIN_REVISUAL_MMRL},${DATA_TRAIN_REVISUAL_TEXTRL},${DATA_TRAIN_XINCE},${DATA_TRAIN_R1_SEARCHER}] \
+    data.val_files=[${DATA_TEST_ZERO_BENCH},${DATA_TEST_BROWSECOMP_ZH},${DATA_TEST_MMSEARCH},${DATA_TEST_SEEKWORLD},${DATA_TEST_VSTAR}] \
     data.train_batch_size=256 \
     data.gen_batch_size=256 \
     data.max_prompt_length=8192 \
@@ -96,10 +95,11 @@ PYTHONUNBUFFERED=1 python3 -m recipe.deepeyes_v2.main_dapo \
     actor_rollout_ref.rollout.agent.activate_agent=True \
     actor_rollout_ref.rollout.agent.tool_name_key=env_name \
     actor_rollout_ref.rollout.agent.single_response_max_tokens=24576 \
-    actor_rollout_ref.rollout.agent.max_turns=10 \
-    actor_rollout_ref.rollout.agent.concurrent_workers=8 \
+    actor_rollout_ref.rollout.agent.max_turns=16 \
+    actor_rollout_ref.rollout.agent.concurrent_workers=1 \
     actor_rollout_ref.rollout.agent.custom_stop=${CUSTOM_STOP} \
     actor_rollout_ref.rollout.agent.show_tqdm=True \
+    actor_rollout_ref.rollout.agent.max_vllm_images=50 \
     reward_model.reward_manager=prime \
     reward_model.num_workers=16 \
     critic.cliprange_value=50 \

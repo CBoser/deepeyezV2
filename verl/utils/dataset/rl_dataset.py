@@ -239,7 +239,7 @@ class RLHFDataset(Dataset):
                 model_inputs.pop("second_per_grid_ts")
 
             # There's a trap here, multi_modal_inputs has to be a dict, not BatchFeature
-            row_dict['origin_multi_modal_data'] = origin_multi_modal_data
+            row_dict["origin_multi_modal_data"] = origin_multi_modal_data
             row_dict["multi_modal_data"] = multi_modal_data
             row_dict["multi_modal_inputs"] = dict(model_inputs)
 
