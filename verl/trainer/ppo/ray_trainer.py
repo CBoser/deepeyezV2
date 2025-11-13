@@ -904,9 +904,7 @@ class RayPPOTrainer:
         The light-weight advantage computation is done on the driver process.
         """
         from omegaconf import OmegaConf
-
         from verl.utils.tracking import Tracking
-
         logger = Tracking(
             project_name=self.config.trainer.project_name,
             experiment_name=self.config.trainer.experiment_name,
@@ -1205,3 +1203,6 @@ class RayPPOTrainer:
                     pprint(f"Final validation metrics: {last_val_metrics}")
                     progress_bar.close()
                     return
+
+                progress_bar.update(1)
+                self.global_steps += 1

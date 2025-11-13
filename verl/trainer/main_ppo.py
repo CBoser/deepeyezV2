@@ -33,25 +33,22 @@ def main(config):
 
 # Define a function to run the PPO-like training process
 def run_ppo(config) -> None:
-    # Check if Ray is not initialized
+    env_vars = {'TOKENIZERS_PARALLELISM': 'true', 'NCCL_DEBUG': 'WARN', 'VLLM_LOGGING_LEVEL': 'WARN', 'RAY_DEBUG':"0"}
+    if getattr(config.actor_rollout_ref.rollout, "vllm_use_v1", False):
+        env_vars['VLLM_USE_V1'] = "1"
+    if getattr(config, 'debug', False):
+        env_vars['RAY_DEBUG'] = "1"
     if not ray.is_initialized():
-        # Initialize Ray with a local cluster configuration
-        # Set environment variables in the runtime environment to control tokenizer parallelism,
-        # NCCL debug level, VLLM logging level, and allow runtime LoRA updating
-        # `num_cpus` specifies the number of CPU cores Ray can use, obtained from the configuration
-        ray.init(
-            runtime_env={"env_vars": {"TOKENIZERS_PARALLELISM": "true", "NCCL_DEBUG": "WARN", "VLLM_LOGGING_LEVEL": "WARN", "VLLM_ALLOW_RUNTIME_LORA_UPDATING": "true"}},
-            num_cpus=config.ray_init.num_cpus,
-        )
-
-    # Create a remote instance of the TaskRunner class, and
-    # Execute the `run` method of the TaskRunner instance remotely and wait for it to complete
-    if OmegaConf.select(config.trainer, "profile_steps") is not None and len(OmegaConf.select(config.trainer, "profile_steps")) > 0:
-        nsight_options = OmegaConf.to_container(config.trainer.controller_nsight_options)
-        runner = TaskRunner.options(runtime_env={"nsight": nsight_options}).remote()
+        # this is for local ray cluster
+        # ray.init(runtime_env={'env_vars': {'TOKENIZERS_PARALLELISM': 'true', 'NCCL_DEBUG': 'WARN'}})
+        ray.init(runtime_env={'env_vars': env_vars})
+    if getattr(config, "vs_debug", False):
+        print(f'LOCAL VSCODE DEBUG')
+        runner = TaskRunner
+        runner.run(config)
     else:
         runner = TaskRunner.remote()
-    ray.get(runner.run.remote(config))
+        ray.get(runner.run.remote(config))
 
     # [Optional] get the path of the timeline trace file from the configuration, default to None
     # This file is used for performance analysis
