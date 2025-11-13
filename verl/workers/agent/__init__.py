@@ -18,10 +18,7 @@ try:
     from .envs.visual_agent.mm_search_engine import MMSearchEngine
 except Exception as err:
     print(f' [ERROR] Failed to register MMSearchEngine : {err=}')
-
-try:
-    from .envs.frozenlake.frozenlake import FrozenLakeTool
-except Exception as err:
-    print(f' [ERROR] Failed to register FrozenLakeTool : {err=}')
+from .envs.frozenlake.frozenlake import FrozenLakeTool
+from .envs.collab_code.user_feedback import UserFeedback
 
 from .parallel_env import agent_rollout_loop

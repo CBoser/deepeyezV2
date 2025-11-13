@@ -137,6 +137,9 @@ def default_compute_score(data_source, solution_str, ground_truth, extra_info=No
 
     elif data_source in ["frozenlake"]:
         res = 0.0
+        
+    elif data_source in ["collab_code"]:
+        res = 0.0
 
     elif data_source in ["searchR1_nq", "searchR1_triviaqa", "searchR1_popqa", "searchR1_hotpotqa", "searchR1_2wikimultihopqa", "searchR1_musique", "searchR1_bamboogle"]:
         from . import search_r1_like_qa_em

@@ -1,6 +1,6 @@
 set -x
 
-# export CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7
+cd /cpfs/user/zhengziwei/workspace/agent/VeRL-Agent
 
 export HF_HOME=/cpfs/user/zhengziwei/HF_HOME
 export PATH=/cpfs/user/zhengziwei/ENV/miniconda3/envs/verl_agent/bin:$PATH
@@ -8,11 +8,13 @@ export VLLM_USE_MODELSCOPE=false
 export NCCL_DEBUG=WARN
 export WANDB_API_KEY=7d84dc21bf59f2e0dd3f214b75a53786cd8fc5d8
 
-VISUAL_DATASET_TRAIN=vl_agent_V1_train_box.parquet
-VISUAL_DATASET_TEST=vl_agent_V1_test_box.parquet
+PROJECT_NAME=agent_ppo_vlagent
+EXPERIMENT_NAME=visual_agent_env_v2_model_v1
+BASE_MODEL=/cpfs/user/zhengziwei/HF_HOME/hub/models--Qwen--Qwen2.5-VL-7B-Instruct/snapshots/6e6556e8ce728c7b3e438d75ebf04ec93403dc19
+VISUAL_DATASET_TRAIN=/cpfs/user/honglingyi/DATA/LLM/VL_Agent/parquets/vl_agent_V1_train_box.parquet
+VISUAL_DATASET_TEST=/cpfs/user/honglingyi/DATA/LLM/VL_Agent/parquets/vl_agent_V1_test_box.parquet
 
 
-REF_MODEL_PATH=Qwen/Qwen2.5-VL-32B-Instruct
 PYTHONUNBUFFERED=1 python3 -m verl.trainer.main_ppo \
     data.train_files=${VISUAL_DATASET_TRAIN} \
     data.val_files=${VISUAL_DATASET_TEST} \
@@ -20,28 +22,30 @@ PYTHONUNBUFFERED=1 python3 -m verl.trainer.main_ppo \
     data.max_prompt_length=8192 \
     data.max_response_length=10240 \
     data.return_raw_chat=True \
-    algorithm.adv_estimator=grpo \
+    algorithm.adv_estimator=gae \
+    algorithm.lam=1.0 \
     algorithm.kl_ctrl.kl_coef=0.0 \
     actor_rollout_ref.model.path=${BASE_MODEL} \
     actor_rollout_ref.actor.optim.lr=1e-6 \
     actor_rollout_ref.actor.ppo_mini_batch_size=256 \
-    actor_rollout_ref.actor.ppo_micro_batch_size_per_gpu=1 \
+    actor_rollout_ref.actor.ppo_micro_batch_size_per_gpu=2 \
     actor_rollout_ref.actor.use_kl_loss=False \
     actor_rollout_ref.actor.kl_loss_coef=0.0 \
     actor_rollout_ref.actor.kl_loss_type=low_var_kl \
     actor_rollout_ref.actor.entropy_coeff=0.0001 \
     actor_rollout_ref.actor.checkpoint.contents=['model','hf_model','optimizer','extra'] \
-    actor_rollout_ref.rollout.log_prob_micro_batch_size_per_gpu=1 \
+    actor_rollout_ref.rollout.log_prob_micro_batch_size_per_gpu=2 \
     actor_rollout_ref.rollout.tensor_model_parallel_size=1 \
     actor_rollout_ref.rollout.name=vllm \
-    actor_rollout_ref.rollout.n=4 \
+    actor_rollout_ref.rollout.n=1 \
     actor_rollout_ref.rollout.max_num_batched_tokens=32768 \
     actor_rollout_ref.rollout.gpu_memory_utilization=0.6 \
     actor_rollout_ref.rollout.enforce_eager=False \
     actor_rollout_ref.rollout.free_cache_engine=False \
-    actor_rollout_ref.actor.fsdp_config.param_offload=False \
-    actor_rollout_ref.actor.fsdp_config.optimizer_offload=False \
-    actor_rollout_ref.ref.log_prob_micro_batch_size_per_gpu=1 \
+    actor_rollout_ref.rollout.enable_chunked_prefill=False \
+    actor_rollout_ref.actor.fsdp_config.param_offload=True \
+    actor_rollout_ref.actor.fsdp_config.optimizer_offload=True \
+    actor_rollout_ref.ref.log_prob_micro_batch_size_per_gpu=2 \
     actor_rollout_ref.ref.fsdp_config.param_offload=True \
     actor_rollout_ref.rollout.agent.activate_agent=True \
     actor_rollout_ref.rollout.agent.tool_name_key=env_name \
@@ -50,6 +54,13 @@ PYTHONUNBUFFERED=1 python3 -m verl.trainer.main_ppo \
     actor_rollout_ref.rollout.agent.max_turns=9 \
     actor_rollout_ref.rollout.agent.concurrent_workers=1 \
     actor_rollout_ref.rollout.agent.show_tqdm=True \
+    critic.optim.lr=1e-5 \
+    critic.model.use_remove_padding=True \
+    critic.model.path=${BASE_MODEL} \
+    critic.model.enable_gradient_checkpointing=True \
+    critic.use_dynamic_bsz=True \
+    critic.model.fsdp_config.param_offload=True \
+    critic.model.fsdp_config.optimizer_offload=True \
     trainer.critic_warmup=0 \
     trainer.logger=['console','tensorboard','rl_logging_board','wandb'] \
     trainer.val_before_train=False \

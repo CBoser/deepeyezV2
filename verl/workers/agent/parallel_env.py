@@ -179,6 +179,7 @@ def agent_rollout_loop(config, vllm_engine, vllm_inputs, prompts, multi_modal_in
             active_mask.append(True)
             mm_input_list.append(deepcopy(multi_modal_inputs[i]))
             tool_call_cnt_list.append(0)
+            turn_cnt_list.append(0)
 
     pg = vllm_ps.get_tp_group()
     max_total_length = config.prompt_length + config.response_length
@@ -187,8 +188,10 @@ def agent_rollout_loop(config, vllm_engine, vllm_inputs, prompts, multi_modal_in
         if sum(active_mask) == 0:
             break
 
+        # max_image_mask = [len(v["multi_modal_data"]["image"]) <= config.agent.max_vllm_images for v in vllm_input_list]
         active_indices = [idx for idx, is_active in enumerate(active_mask) if is_active]
         active_vllm_inputs = [vinput for vinput, is_active in zip(vllm_input_list, active_mask) if is_active]
+        # try:
         actions = vllm_engine.generate(
             prompts=active_vllm_inputs,
             sampling_params=agent_sampling_params,
@@ -230,7 +233,7 @@ def agent_rollout_loop(config, vllm_engine, vllm_inputs, prompts, multi_modal_in
             if done or step == config.agent.max_turns - 1:
                 active_mask[idx] = False
                 continue
-            tool_call_cnt_list[idx] += 1
+            turn_cnt_list[idx] += 1
 
             # process obs tokens and images
             if 'prompt_token_ids_vllm' in obs.keys() and 'prompt_token_ids_model' in obs.keys():
@@ -272,6 +275,11 @@ def agent_rollout_loop(config, vllm_engine, vllm_inputs, prompts, multi_modal_in
                     mm_input_list[idx] = _merge_multi_modal_inputs(mm_input_list[idx], mm_input)
 
             if running_states[idx].shape[-1] >= max_total_length or len(vllm_input_list[idx]['prompt_token_ids']) >= max_total_length:
+                active_mask[idx] = False
+            
+            tool_call_cnt_list[idx] = len(vllm_input_list[idx]['multi_modal_data']['image']) - 1
+            if tool_call_cnt_list[idx] > config.agent.max_vllm_images - 1:
+                # print(f' [DEBUG TOOL_NUM] {step=}, {idx=}, {tool_call_cnt_list[idx]=}, {len(vllm_input_list[idx]["multi_modal_data"]["image"])=}')
                 active_mask[idx] = False
 
     env.close()
@@ -479,6 +487,8 @@ class ParallelEnv:
             data_item = prompts[i]  # DataProtoItem
             tool_name = data_item.non_tensor_batch.pop(self.config.tool_name_key, '')
             raw_prompt = data_item.non_tensor_batch.pop('raw_prompt', None)
+            env_info = data_item.non_tensor_batch.get('env_info', '')
+            user_meta = self.config.user_model
 
             vllm_input_item = vllm_inputs[i]   # {"prompt_token_ids": ..., "multi_modal_data": ...}
             multi_modal_data = vllm_input_item.get("multi_modal_data", None)

@@ -3,15 +3,15 @@ set -x
 cd /cpfs/user/zhengziwei/workspace/agent/VeRL-Agent
 
 export HF_HOME=/cpfs/user/zhengziwei/HF_HOME
-export PATH=/cpfs/user/zhengziwei/ENV/miniconda3/envs/agent/bin:$PATH
+export PATH=/cpfs/user/zhengziwei/ENV/miniconda3/envs/verl_agent/bin:$PATH
 export VLLM_USE_MODELSCOPE=false
 export NCCL_DEBUG=WARN
 export VLLM_ATTENTION_BACKEND=XFORMERS
-export DATA_DIR=/cpfs/user/yangminghao/RL/fengyuan/InteractiveRL/data/frozenlake
+export DATA_DIR=/cpfs/user/zhengziwei/workspace/agent/VeRL-Agent/data/collab_code/LeetCodeDataset-v0.3.0
 
-PROJECT_NAME="agent_ppo_debug_frozenlake"
+PROJECT_NAME="agent_ppo_collab_code_debug"
 EXPERIMENT_NAME=qwen25_0.5b_instruct_debug
-BASE_MODEL=/cpfs/user/yangminghao/hf_model/Qwen2.5-0.5B-Instruct
+BASE_MODEL=/cpfs/user/zhengziwei/HF_HOME/hub/models--Qwen--Qwen2.5-0.5B-Instruct/snapshots/7ae557604adf67be50417f59c2c2f167def9a775
 
 
 PYTHONUNBUFFERED=1 python3 -m verl.trainer.main_ppo \
@@ -45,8 +45,16 @@ PYTHONUNBUFFERED=1 python3 -m verl.trainer.main_ppo \
     actor_rollout_ref.rollout.free_cache_engine=True \
     actor_rollout_ref.rollout.agent.activate_agent=True \
     actor_rollout_ref.rollout.agent.single_obs_max_length=512 \
-    actor_rollout_ref.rollout.agent.max_turns=16 \
+    actor_rollout_ref.rollout.agent.max_turns=10 \
     actor_rollout_ref.rollout.agent.concurrent_workers=4 \
+    +actor_rollout_ref.rollout.agent.extra_env_info=True \
+    actor_rollout_ref.rollout.agent.custom_stop=[] \
+    actor_rollout_ref.rollout.agent.user_model.level=low \
+    actor_rollout_ref.rollout.agent.user_model.url='10.39.0.101' \
+    actor_rollout_ref.rollout.agent.user_model.name=qwen-72b-instruct \
+    actor_rollout_ref.rollout.agent.user_model.api_key=zzw-114514 \
+    actor_rollout_ref.rollout.agent.user_model.temperature=0.7 \
+    actor_rollout_ref.rollout.agent.user_model.max_tokens=512 \
     critic.optim.lr=1e-5 \
     critic.model.use_remove_padding=True \
     critic.optim.lr_warmup_steps_ratio=0.05 \
@@ -58,7 +66,7 @@ PYTHONUNBUFFERED=1 python3 -m verl.trainer.main_ppo \
     algorithm.kl_ctrl.kl_coef=0.001 \
     trainer.critic_warmup=0 \
     trainer.logger=['console','tensorboard','rl_logging_board'] \
-    +trainer.val_before_train=False \
+    trainer.val_before_train=True \
     trainer.n_gpus_per_node=1 \
     trainer.nnodes=1 \
     trainer.save_freq=16 \

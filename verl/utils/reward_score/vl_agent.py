@@ -23,9 +23,11 @@ for api_base in openai_api_base_list:
     client_list.append(client)
 model_name_list = []
 for client in client_list:
-    response = requests.get(f"{api_base}/models")
-    models = response.json()
-    model_name_list.append(models['data'][0]['id'])
+    models = client.models.list()
+    model_name_list.append(models.data[0].id)
+    # response = requests.get(f"{api_base}/models")
+    # models = response.json()
+    # model_name_list.append(models['data'][0]['id'])
 
 
 
@@ -304,11 +306,19 @@ def compute_common_reasoning(predict_str: str, ground_truth: str, extra_info=Non
     count_vision_2 = predict_str.count("<|image_pad|><|vision_end|>")
     if count_vision_1 != count_vision_2:
         is_format_error = True
+        return 0.0
 
-    predict_no_think = predict_str.split('</think>')[-1].strip()
-    count_answer_1 = predict_no_think.count("<answer>")
-    count_answer_2 = predict_no_think.count("</answer>")
-    if count_answer_1 != count_answer_2:
+    # predict_no_think = predict_str.split('</think>')[-1].strip()
+    # count_answer_1 = predict_no_think.count("<answer>")
+    # count_answer_2 = predict_no_think.count("</answer>")
+    # if count_answer_1 != count_answer_2:
+    #     is_format_error = True
+
+    # answer_text = predict_no_think.split("<answer>")[-1].split("</answer>")[0].strip()
+    match = re.search(r"<answer>(.*?)</answer>", predict_str, re.DOTALL)
+    if match:
+        answer_text = match.group(1).strip()
+    else:
         is_format_error = True
 
     answer_text = extract_answer(predict_no_think) # predict_no_think.split("<answer>")[-1].split("</answer>")[0].strip()

@@ -641,7 +641,7 @@ class RayPPOTrainer:
                 "do_sample": self.config.actor_rollout_ref.rollout.val_kwargs.do_sample,
                 "validate": True,
             }
-            print(f"test_gen_batch meta info: {test_gen_batch.meta_info}")
+            # print(f'test_gen_batch meta info: {test_gen_batch.meta_info}')
 
             # pad to be divisible by dp_size
             test_gen_batch_padded, pad_size = pad_dataproto_to_divisor(test_gen_batch, self.actor_rollout_wg.world_size)
@@ -654,7 +654,7 @@ class RayPPOTrainer:
 
             # unpad
             test_output_gen_batch = unpad_dataproto(test_output_gen_batch_padded, pad_size=pad_size)
-            print("validation generation end")
+            # print('validation generation end')
 
             # Store generated outputs
             output_ids = test_output_gen_batch.batch["responses"]
@@ -666,6 +666,10 @@ class RayPPOTrainer:
             # evaluate using reward_function
             result = self.val_reward_fn(test_batch, return_dict=True)
             reward_tensor = result["reward_tensor"]
+
+            if 'env_reward' in test_batch.batch.keys():
+                reward_tensor += test_batch.batch['env_reward']
+
             scores = reward_tensor.sum(-1).cpu().tolist()
             sample_scores.extend(scores)
 
@@ -1107,6 +1111,16 @@ class RayPPOTrainer:
                             metrics.update(kl_metrics)
                         else:
                             batch.batch["token_level_rewards"] = batch.batch["token_level_scores"]
+
+                        if 'env_reward' in batch.batch.keys():
+                            # print(f' [DEBUG reward] rewards_before={batch.batch["token_level_rewards"].mean().item()}')
+                            batch.batch['token_level_rewards'] += batch.batch['env_reward']
+                            # print(f' [DEBUG reward] rewards_after={batch.batch["token_level_rewards"].mean().item()}')
+
+                        if 'env_reward' in batch.batch.keys():
+                            # print(f' [DEBUG reward] rewards_before={batch.batch["token_level_rewards"].mean().item()}')
+                            batch.batch['token_level_rewards'] += batch.batch['env_reward']
+                            # print(f' [DEBUG reward] rewards_after={batch.batch["token_level_rewards"].mean().item()}')
 
                         # compute advantages, executed on the driver process
 
