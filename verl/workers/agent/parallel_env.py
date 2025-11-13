@@ -71,6 +71,8 @@ def _merge_multi_modal_inputs(mm_input, other):
             merged_value = np.concatenate([mm_value, other_value], axis=0)
         elif isinstance(mm_value, torch.Tensor) and isinstance(other_value, torch.Tensor):
             merged_value = torch.cat([mm_value, other_value], dim=0)
+        elif mm_value is None or other_value is None:
+            continue
         else:
             raise ValueError(f"Invalid {type(mm_value)=}, {type(other_value)=}")
 
@@ -79,22 +81,22 @@ def _merge_multi_modal_inputs(mm_input, other):
 
 
 def _preprocess_multi_modal_inputs(prompt_str, processor, **kwargs):
-    if processor is None or "multi_modal_data" not in kwargs:
+    if processor is None:
         return prompt_str, prompt_str, {}
 
     vllm_input_prompt = prompt_str.replace('<image>', '<|vision_start|><|image_pad|><|vision_end|>')
     input_mm_data = kwargs.get("multi_modal_data", {"image": []})
     
     image_info_list = []
-    for img in input_mm_data["image"]:
-        buf = io.BytesIO()
-        img.save(buf, format='PNG')
-        png_bytes = buf.getvalue()
-        buf.close()
-        img_info = {"bytes": png_bytes}
-        image_info_list.append(img_info)
+    # for img in input_mm_data["image"]:
+    #     buf = io.BytesIO()
+    #     img.save(buf, format='PNG')
+    #     png_bytes = buf.getvalue()
+    #     buf.close()
+    #     img_info = {"bytes": png_bytes}
+    #     image_info_list.append(img_info)
 
-    input_mm_data["image"] = [process_image(img) for img in image_info_list]
+    # input_mm_data["image"] = [process_image(img) for img in image_info_list]
     model_inputs = processor(text=[vllm_input_prompt], images=input_mm_data["image"], return_tensors="pt")
     input_ids = model_inputs.pop("input_ids")[0]
     attention_mask = model_inputs.pop("attention_mask")[0]
@@ -138,7 +140,7 @@ def agent_rollout_loop(config, vllm_engine, vllm_inputs, prompts, multi_modal_in
     #     151644,    # <|im_start|>
     # ])
     # agent_sampling_params.logits_processors = [exclude_func]
-    # agent_sampling_params.bad_words = ["<|endoftext|>", "<|im_start|>"]
+    agent_sampling_params.bad_words = ["<|endoftext|>", "<size>", "<|im_start|>"]
 
     tokenizer = hf_tokenizer(config.agent.vl_model_path)
     processor = hf_processor(config.agent.vl_model_path)
@@ -157,6 +159,8 @@ def agent_rollout_loop(config, vllm_engine, vllm_inputs, prompts, multi_modal_in
     active_mask = []
     mm_input_list = []
     tool_call_cnt_list = []
+    # TODO: support visualizing rollout_log_probs
+    rollout_log_probs = []
 
     env = ParallelEnv(config.agent, tokenizer, processor)
     env.reset(prompts, vllm_inputs, n=sampling_params.n)
@@ -256,9 +260,11 @@ def agent_rollout_loop(config, vllm_engine, vllm_inputs, prompts, multi_modal_in
                 running_attn_masks[idx] = torch.cat([running_attn_masks[idx], attn_mask])
 
                 mm_data = obs.get('multi_modal_data', {})
-                if 'image' in mm_data.keys():
+                if "image" in mm_data.keys():
                     if 'multi_modal_data' not in vllm_input_list[idx].keys():
                         vllm_input_list[idx]['multi_modal_data'] = {"image": []}
+                    if "image" not in vllm_input_list[idx]["multi_modal_data"].keys():
+                        vllm_input_list[idx]["multi_modal_data"]["image"] = []
                     vllm_input_list[idx]['multi_modal_data']['image'] += mm_data['image']
 
                 mm_input = obs.get('multi_modal_inputs', {})
@@ -499,4 +505,7 @@ class ParallelEnv:
         return reset_output_list
 
     def close(self):
+        for tool in self.tools:
+            if tool is not None:
+                tool.close()
         self.tools = []
