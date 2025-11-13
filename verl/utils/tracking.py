@@ -26,12 +26,15 @@ class Tracking(object):
     supported_backend = ["wandb", "mlflow", "swanlab", "vemlp_wandb", "tensorboard", "console", "rl_logging_board"]
 
     def __init__(self, 
+        project_name: str,
+        experiment_name: str,
+        default_backend: Union[str, List[str]],
         trainer_config: dict,
         config=None
     ):  
-        project_name=trainer_config.trainer.project_name
-        experiment_name=trainer_config.trainer.experiment_name
-        default_backend=trainer_config.trainer.logger
+        # project_name=trainer_config.trainer.project_name
+        # experiment_name=trainer_config.trainer.experiment_name
+        # default_backend=trainer_config.trainer.logger
 
         if isinstance(default_backend, str):
             default_backend = [default_backend]
@@ -108,7 +111,7 @@ class Tracking(object):
             self.logger["vemlp_wandb"] = vemlp_wandb
 
         if 'tensorboard' in default_backend:
-            from verl.utils.tensorboard import TensorboardLogger
+            from verl.utils.tensorboard_utils import TensorboardLogger
             self.logger['tensorboard'] = TensorboardLogger(
                 trainer_config.trainer.tensorboard_dir,
                 project_name, 
@@ -116,7 +119,7 @@ class Tracking(object):
             )
         
         if 'rl_logging_board' in default_backend:
-            from verl.utils.rl_logging_board import RLLoggingBoardLogger
+            from verl.utils.rl_logging_board_utils import RLLoggingBoardLogger
             self.logger['rl_logging_board'] = RLLoggingBoardLogger(
                 trainer_config.trainer.rl_logging_board_dir,
                 project_name, 

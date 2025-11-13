@@ -883,8 +883,12 @@ class RayPPOTrainer:
         from omegaconf import OmegaConf
         from verl.utils.tracking import Tracking
         logger = Tracking(
+            project_name=self.config.trainer.project_name,
+            experiment_name=self.config.trainer.experiment_name,
+            default_backend=self.config.trainer.logger,
             trainer_config=self.config,
-            config=OmegaConf.to_container(self.config, resolve=True)        )
+            config=OmegaConf.to_container(self.config, resolve=True),
+        )
 
         self.global_steps = 0
 

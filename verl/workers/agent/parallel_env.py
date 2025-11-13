@@ -1,4 +1,5 @@
 import re
+import io
 import torch
 import numpy as np
 from copy import deepcopy
@@ -83,7 +84,17 @@ def _preprocess_multi_modal_inputs(prompt_str, processor, **kwargs):
 
     vllm_input_prompt = prompt_str.replace('<image>', '<|vision_start|><|image_pad|><|vision_end|>')
     input_mm_data = kwargs.get("multi_modal_data", {"image": []})
-    input_mm_data["image"] = [process_image(image) for image in input_mm_data['image']]
+    
+    image_info_list = []
+    for img in input_mm_data["image"]:
+        buf = io.BytesIO()
+        img.save(buf, format='PNG')
+        png_bytes = buf.getvalue()
+        buf.close()
+        img_info = {"bytes": png_bytes}
+        image_info_list.append(img_info)
+
+    input_mm_data["image"] = [process_image(img) for img in image_info_list]
     model_inputs = processor(text=[vllm_input_prompt], images=input_mm_data["image"], return_tensors="pt")
     input_ids = model_inputs.pop("input_ids")[0]
     attention_mask = model_inputs.pop("attention_mask")[0]
@@ -96,6 +107,8 @@ def _preprocess_multi_modal_inputs(prompt_str, processor, **kwargs):
 
 
 def agent_rollout_loop(config, vllm_engine, vllm_inputs, prompts, multi_modal_inputs, sampling_params):
+    from vllm.distributed import parallel_state as vllm_ps
+
     agent_sampling_params = sampling_params.clone()
     agent_sampling_params.detokenize = True
     agent_sampling_params.skip_special_tokens = False
@@ -125,7 +138,7 @@ def agent_rollout_loop(config, vllm_engine, vllm_inputs, prompts, multi_modal_in
     #     151644,    # <|im_start|>
     # ])
     # agent_sampling_params.logits_processors = [exclude_func]
-    agent_sampling_params.bad_words = ["<|endoftext|>", "<|im_start|>"]
+    # agent_sampling_params.bad_words = ["<|endoftext|>", "<|im_start|>"]
 
     tokenizer = hf_tokenizer(config.agent.vl_model_path)
     processor = hf_processor(config.agent.vl_model_path)
@@ -163,6 +176,7 @@ def agent_rollout_loop(config, vllm_engine, vllm_inputs, prompts, multi_modal_in
             mm_input_list.append(deepcopy(multi_modal_inputs[i]))
             tool_call_cnt_list.append(0)
 
+    pg = vllm_ps.get_tp_group()
     max_total_length = config.prompt_length + config.response_length
     for step in range(config.agent.max_turns):
         print(f' [DEBUG 000] {step=}, total={batch_size}, n={sampling_params.n}, num_active={sum(active_mask)}')
@@ -176,7 +190,15 @@ def agent_rollout_loop(config, vllm_engine, vllm_inputs, prompts, multi_modal_in
             sampling_params=agent_sampling_params,
             use_tqdm=False
         )
-        observations, rewards, dones, info = env.step(active_indices, actions)
+
+        if pg.is_first_rank:
+            obs_results = env.step(active_indices, actions)
+        else:
+            obs_results = None
+
+        obs_results = pg.broadcast_object(obs_results)
+        observations, rewards, dones, info = obs_results
+
 
         for idx, obs, act, rew, done in zip(active_indices, observations, actions, rewards, dones):
             # process response token ids
@@ -207,38 +229,41 @@ def agent_rollout_loop(config, vllm_engine, vllm_inputs, prompts, multi_modal_in
             tool_call_cnt_list[idx] += 1
 
             # process obs tokens and images
-            if 'prompt_token_ids_vllm' in obs.keys():
-                obs_token_ids = obs['prompt_token_ids_vllm']
+            if 'prompt_token_ids_vllm' in obs.keys() and 'prompt_token_ids_model' in obs.keys():
+                obs_token_ids_vllm = obs['prompt_token_ids_vllm']
+                obs_token_ids_model = obs['prompt_token_ids_model'].to(running_states[idx].device)
+
+                if len(vllm_input_list[idx]['prompt_token_ids']) + len(obs_token_ids_vllm) >= max_total_length:
+                    active_mask[idx] = False
+                    continue
+                if running_states[idx].shape[-1] + len(obs_token_ids_model) >= max_total_length:
+                    active_mask[idx] = False
+                    continue
+
                 vllm_input_list[idx]['prompt_token_ids'] = _concat_vllm_input(
                     vllm_input_list[idx]['prompt_token_ids'], 
-                    obs_token_ids,
+                    obs_token_ids_vllm,
                     tokenizer=tokenizer,
                 )
 
-            if 'prompt_token_ids_model' in obs.keys():
-                obs_token_ids = obs['prompt_token_ids_model'].to(running_states[idx].device)
-                running_states[idx] = torch.cat([running_states[idx], obs_token_ids])
-
-                obs_reward = torch.zeros(len(obs_token_ids), dtype=torch.float, device=reward_tensor_list[idx].device)
+                running_states[idx] = torch.cat([running_states[idx], obs_token_ids_model])
+                obs_reward = torch.zeros(len(obs_token_ids_model), dtype=torch.float, device=reward_tensor_list[idx].device)
                 reward_tensor_list[idx] = torch.cat([reward_tensor_list[idx], obs_reward], dim=-1)
 
-                obs_mask = torch.zeros(len(obs_token_ids), dtype=torch.int64, device=running_action_masks[idx].device)
+                obs_mask = torch.zeros(len(obs_token_ids_model), dtype=torch.int64, device=running_action_masks[idx].device)
                 running_action_masks[idx] = torch.cat([running_action_masks[idx], obs_mask])
-                attn_mask = torch.ones(len(obs_token_ids), dtype=torch.int64, device=running_attn_masks[idx].device)
+                attn_mask = torch.ones(len(obs_token_ids_model), dtype=torch.int64, device=running_attn_masks[idx].device)
                 running_attn_masks[idx] = torch.cat([running_attn_masks[idx], attn_mask])
 
-            mm_data = obs.get('multi_modal_data', {})
-            if 'image' in mm_data.keys():
-                if 'multi_modal_data' not in vllm_input_list[idx].keys():
-                    vllm_input_list[idx]['multi_modal_data'] = {"image": []}
-                print(f' [DEBUG img] {idx=} before update {len(vllm_input_list[idx]["multi_modal_data"]["image"])=}, {len(mm_data["image"])=}')
-                vllm_input_list[idx]['multi_modal_data']['image'] += mm_data['image']
-                print(f' [DEBUG img] {idx=} after update {len(vllm_input_list[idx]["multi_modal_data"]["image"])=}')
+                mm_data = obs.get('multi_modal_data', {})
+                if 'image' in mm_data.keys():
+                    if 'multi_modal_data' not in vllm_input_list[idx].keys():
+                        vllm_input_list[idx]['multi_modal_data'] = {"image": []}
+                    vllm_input_list[idx]['multi_modal_data']['image'] += mm_data['image']
 
-            mm_input = obs.get('multi_modal_inputs', {})
-            if mm_input:
-                print(f' [DEBUG img] {idx=} merge mm_input {mm_input_list[idx].keys()} + {mm_input.keys()}')
-                mm_input_list[idx] = _merge_multi_modal_inputs(mm_input_list[idx], mm_input)
+                mm_input = obs.get('multi_modal_inputs', {})
+                if mm_input:
+                    mm_input_list[idx] = _merge_multi_modal_inputs(mm_input_list[idx], mm_input)
 
             if running_states[idx].shape[-1] >= max_total_length or len(vllm_input_list[idx]['prompt_token_ids']) >= max_total_length:
                 active_mask[idx] = False
@@ -318,7 +343,7 @@ def execute_tool_call(sample, tokenizer=None, processor=None, pbar=None):
         eos_start_idx = torch.nonzero(obs_token_ids == tokenizer.eos_token_id)
         if eos_start_idx.shape[0] > 0:
             eos_start_idx = eos_start_idx[0].item()
-            obs_token_ids = obs_token_ids[eos_start_idx + 2 : ]
+            obs_token_ids = obs_token_ids[eos_start_idx + 1 : ]
         else:
             raise ValueError(f"tool [{tool.name}] returned type List[str] output must be in openai/qwen format : {tool_result}")
 

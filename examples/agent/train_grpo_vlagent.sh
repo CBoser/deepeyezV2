@@ -1,7 +1,6 @@
 set -x
 
 # export CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7
-DATA_DIR=/cpfs/user/honglingyi/DATA/LLM/VL_Agent/parquets
 
 PROJECT_NAME="agent_vlagent"
 EXPERIMENT_NAME="qwen25_vl_7b_instruct_vl_agent_v2"
@@ -15,9 +14,8 @@ export SAVE_CHECKPOINT_DIR=/diancpfs/user/fengyuan/verl_checkpoints
 DEBUG_DATASET_TRAIN=/cpfs/user/fengyuan/code/github/verl/data/geo3k/train_agent.parquet
 DEBUG_DATASET_TEST=/cpfs/user/fengyuan/code/github/verl/data/geo3k/test_agent.parquet
 
-# data.train_files=${DATA_DIR}/vl_agent_V1.parquet \
 
-REF_MODEL_PATH=/cpfs/user/honglingyi/MODEL/Qwen/Qwen2.5-VL-7B-Instruct
+REF_MODEL_PATH=Qwen/Qwen2.5-VL-7B-Instruct
 PYTHONUNBUFFERED=1 python3 -m verl.trainer.main_ppo \
     data.train_files=${DATA_DIR}/vl_agent_V1.parquet \
     data.val_files=${DEBUG_DATASET_TEST} \
