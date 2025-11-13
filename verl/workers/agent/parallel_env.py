@@ -160,14 +160,7 @@ def agent_rollout_loop(config, vllm_engine, vllm_inputs, prompts, multi_modal_in
     mm_input_list = []
     turn_cnt_list = []
     tool_call_cnt_list = []
-    # TODO: support visualizing rollout_log_probs
-    rollout_log_probs = []
-
-    env = ParallelEnv(config.agent, tokenizer, processor)
-    env.reset(prompts, vllm_inputs, n=sampling_params.n)
-
-    env = ParallelEnv(config.agent, tokenizer, processor)
-    env.reset(prompts, vllm_inputs, n=sampling_params.n)
+    turn_cnt_list = []
 
     # interleaving inputs if sampling_params.n > 1
     for i in range(batch_size):
@@ -201,15 +194,13 @@ def agent_rollout_loop(config, vllm_engine, vllm_inputs, prompts, multi_modal_in
             sampling_params=agent_sampling_params,
             use_tqdm=False
         )
-
-        if pg.is_first_rank:
-            obs_results = env.step(active_indices, actions)
-        else:
-            obs_results = None
-
-        obs_results = pg.broadcast_object(obs_results)
-        observations, rewards, dones, info = obs_results
-
+        # except:
+        #     print(f' [DEBUG TOOL_NUM] {step=}, total={batch_size}, n={sampling_params.n}, num_active={sum(active_mask)}')
+        #     print(f' [DEBUG TOOL_NUM] {step=}, {active_indices=}')
+        #     print(f' [DEBUG TOOL_NUM] vllm_input_list {step=}, len={[len(v["multi_modal_data"]["image"]) for v in vllm_input_list]}')
+        #     print(f' [DEBUG TOOL_NUM] active_vllm_inputs {step=}, len={[len(v["multi_modal_data"]["image"]) for v in active_vllm_inputs]}')
+        #     assert 1==2
+        observations, rewards, dones, info = env.step(active_indices, actions)
 
         for idx, obs, act, rew, done in zip(active_indices, observations, actions, rewards, dones):
             # process response token ids
@@ -266,17 +257,19 @@ def agent_rollout_loop(config, vllm_engine, vllm_inputs, prompts, multi_modal_in
                 attn_mask = torch.ones(len(obs_token_ids_model), dtype=torch.int64, device=running_attn_masks[idx].device)
                 running_attn_masks[idx] = torch.cat([running_attn_masks[idx], attn_mask])
 
-                mm_data = obs.get('multi_modal_data', {})
-                if "image" in mm_data.keys():
-                    if 'multi_modal_data' not in vllm_input_list[idx].keys():
-                        vllm_input_list[idx]['multi_modal_data'] = {"image": []}
-                    if "image" not in vllm_input_list[idx]["multi_modal_data"].keys():
-                        vllm_input_list[idx]["multi_modal_data"]["image"] = []
-                    vllm_input_list[idx]['multi_modal_data']['image'] += mm_data['image']
+            mm_data = obs.get('multi_modal_data', {})
+            if 'image' in mm_data.keys():
+                if 'multi_modal_data' not in vllm_input_list[idx].keys():
+                    vllm_input_list[idx]['multi_modal_data'] = {"image": []}
+                #     print(f' [DEBUG TOOL_NUM] {step=}, {idx=} initialize multi_modal_data=0')
+                # print(f' [DEBUG img] {step=}, {idx=} before update {len(vllm_input_list[idx]["multi_modal_data"]["image"])=}')
+                vllm_input_list[idx]['multi_modal_data']['image'] += mm_data['image']
+                # print(f' [DEBUG img] {step=}, {idx=} after update {len(vllm_input_list[idx]["multi_modal_data"]["image"])=}')
 
-                mm_input = obs.get('multi_modal_inputs', {})
-                if mm_input:
-                    mm_input_list[idx] = _merge_multi_modal_inputs(mm_input_list[idx], mm_input)
+            mm_input = obs.get('multi_modal_inputs', {})
+            if mm_input:
+                # print(f' [DEBUG img] {idx=} merge mm_input {mm_input_list[idx].keys()} + {mm_input.keys()}')
+                mm_input_list[idx] = _merge_multi_modal_inputs(mm_input_list[idx], mm_input)
 
             if running_states[idx].shape[-1] >= max_total_length or len(vllm_input_list[idx]['prompt_token_ids']) >= max_total_length:
                 active_mask[idx] = False
@@ -505,8 +498,10 @@ class ParallelEnv:
                     tool_fns = ToolBase.create(tool_name)
                     reset_output = tool_fns.reset(
                         raw_prompt=raw_prompt, 
-                        multi_modal_data=deepcopy(multi_modal_data),
-                        origin_multi_modal_data=deepcopy(origin_multi_modal_data),
+                        multi_modal_data=multi_modal_data,
+                        origin_multi_modal_data=origin_multi_modal_data,
+                        user_meta=user_meta,
+                        env_info=env_info
                     )
                     self.tools.append(tool_fns)
                     reset_output_list.append(reset_output)
@@ -521,7 +516,4 @@ class ParallelEnv:
         return reset_output_list
 
     def close(self):
-        for tool in self.tools:
-            if tool is not None:
-                tool.close()
         self.tools = []

@@ -218,12 +218,10 @@ class RLHFDataset(Dataset):
 
             images = None
             if self.image_key in row_dict:
-                image_values = row_dict.pop(self.image_key, None)
-                if image_values is not None:
-                    origin_images = [process_raw_image(image) for image in image_values]
-                    images = [process_image(image) for image in image_values]
-                    multi_modal_data["image"] = images
-                    origin_multi_modal_data["image"] = origin_images
+                origin_images = [process_raw_image(image) for image in row_dict.get(self.image_key)]
+                images = [process_image(image, blur_strength=self.image_blur, downsample=self.image_downsample) for image in row_dict.pop(self.image_key)]
+                multi_modal_data["image"] = images
+                origin_multi_modal_data["image"] = origin_images
 
             videos = None
             if self.video_key in row_dict:

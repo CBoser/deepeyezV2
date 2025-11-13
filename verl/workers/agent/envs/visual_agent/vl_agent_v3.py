@@ -16,7 +16,16 @@ from verl.workers.agent.tool_envs import ToolBase, extract_tool_call_contents
 class VLAgentEnvV3(ToolBase):
     name = "vl_agent_v3"
     
-    user_prompt = "Here is the zoomed in image for your grounding region {}.\nIf the images provided above are sufficient to answer the user's question, please put your final answer within <answer></answer>. Otherwise generate a new grouding in JSON format."
+    user_prompt = """<image>\nIf the images provided above are not sufficient to answer the user's question, please generate grouding results in JSON format:
+```json
+[
+    {"bbox_2d": [x1, y1, x2, y2], "label": "label name"}
+]
+```
+The zoomed-in images of your grounding results will be provided in next turn.
+
+Otherwise, please put your final answer in <answer> </answer> tags.
+"""
     answer_start = '<answer>'
     answer_end = '</answer>'
 
@@ -27,6 +36,7 @@ class VLAgentEnvV3(ToolBase):
     def __init__(self, _name, _desc, _params, **kwargs):
         self.chatml_history = []
         self.multi_modal_data = None
+        self.origin_multi_modal_data = None
         super().__init__(name=self.name)
     
     def execute(self, action_string, **kwargs):
@@ -46,35 +56,28 @@ class VLAgentEnvV3(ToolBase):
             invalid_msg = [{"role": "user", "content": "ZOOM IN ARGUMENTS ARE INVALID"}]
             return invalid_msg, 0.0, False, {}
 
-        all_box_list, all_cropped_images = [], []
-        for cropped_bbox in cropped_bbox_list:
-            try:
-                pil_img = self.multi_modal_data['image'][0]
-                cropped_image = pil_img.crop(cropped_bbox['real_bbox_2d'])
-                all_cropped_images.append(cropped_image)
-                all_box_list.append(cropped_bbox['bbox_2d'])
-            except Exception as err:
-                print(f' [ERROR] crop image failed: {err=}')
-                continue
+        # TODO: modify here and process the final output
+        try:
+            pil_img = self.origin_multi_modal_data['image'][0]
+            ds_width, ds_height = pil_img.width / self.width, pil_img.height / self.height
+            resized_bbox = [int(cropped_bbox[0] * ds_width), int(cropped_bbox[1] * ds_height),
+                            int(cropped_bbox[2] * ds_width), int(cropped_bbox[3] * ds_height)]
+            cropped_image = pil_img.crop(resized_bbox)
+        except Exception as err:
+            user_msg = [{"role": "user", "content": "ZOOM IN AREA IS INVALID"}]
+            return user_msg, 0.0, False, {}
 
-        if not all_box_list or not all_cropped_images:
-            invalid_msg = [{"role": "user", "content": "ZOOM IN AREA IS INVALID"}]
-            return invalid_msg, 0.0, False, {}
-
-        # if len(all_box_list) > self.max_images_per_round or len(all_cropped_images) > self.max_images_per_round:
-        #     all_box_list = all_box_list[:self.max_images_per_round]
-        #     all_cropped_images = all_cropped_images[:self.max_images_per_round]
-
-        all_user_msg = "<image>\n" + self.user_prompt.format(all_box_list[0])
-        chat_msg = [{"role": "user", "content": all_user_msg}]
-        obs_dict = {"chat": chat_msg, "multi_modal_data": {"image": [all_cropped_images[0]]}}
+        user_msg = self.user_prompt
+        chat_msg = [{"role": "user", "content": user_msg}]
+        obs_dict = {"chat": chat_msg, "multi_modal_data": {"image": [cropped_image]}}
         return obs_dict, 0.0, False, {}
 
 
     def reset(self, raw_prompt, multi_modal_data, origin_multi_modal_data, **kwargs):
         self.chatml_history = raw_prompt
-        self.multi_modal_data = origin_multi_modal_data
-        assert 'image' in self.multi_modal_data.keys(), f'[ERROR] {origin_multi_modal_data=}'
+        self.multi_modal_data = multi_modal_data
+        self.origin_multi_modal_data = origin_multi_modal_data
+        assert 'image' in self.multi_modal_data.keys(), f'[ERROR] {multi_modal_data=}'
         assert len(self.multi_modal_data['image']) > 0, f'[ERROR] {self.multi_modal_data["image"]=}'
 
 
@@ -157,9 +160,10 @@ class VLAgentEnvV3(ToolBase):
         return [left, top, right, bottom]
 
 
-if __name__ == '__main__':
-    tool = VLAgentEnvV3(_name=None, _desc=None, _params=None)
-    action_text = """<think> The image shows a building with a steeple and some trees in the foreground. There is a person walking in front of the building, but the details of their clothing are not clear enough to determine the color of their jacket. The image does not provide enough detail to answer the question definitively.\n\nSince the image does not provide sufficient detail to determine the color of the woman\'s jacket, I need to use the zoom_in tool to get a closer look at the person.\n</think>\n<tool_call>\n{"name": "zoom_in", "arguments": {"region": "{\\"bbox_2d\\": [587, 1764, 629, 1860]}"}}\n</tool_call>"""
+# if __name__ == '__main__':
+#     tool = VLAgentEnvV2(_name=None, _desc=None, _params=None)
+#     action_text = """<think> The image shows a building with a steeple and some trees in the foreground. There is a person walking in front of the building, but the details of their clothing are not clear enough to determine the color of their jacket. The image does not provide enough detail to answer the question definitively.\n\nSince the image does not provide sufficient detail to determine the color of the woman\'s jacket, I need to use the zoom_in tool to get a closer look at the person.\n</think>\n<tool_call>\n{"name": "zoom_in", "arguments": {"region": "{\\"bbox_2d\\": [587, 1764, 629, 1860]}"}}\n</tool_call>"""
 
-    observation, reward, done, info = tool.execute(action_string=action_text)
-    print (observation)
+#     observation, reward, done, info = tool.execute(action_string=action_text)
+#     print (observation)
+

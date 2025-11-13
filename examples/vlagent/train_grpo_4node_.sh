@@ -8,19 +8,19 @@ export VLLM_USE_MODELSCOPE=false
 export NCCL_DEBUG=WARN
 export WANDB_API_KEY=7d84dc21bf59f2e0dd3f214b75a53786cd8fc5d8
 
-PROJECT_NAME=vlagent_think_mh
-EXPERIMENT_NAME=multiturn_all21k_0.8acc_-0.2format_0.4tool_4node_ds4_bugfree_v6
+PROJECT_NAME=vlagent_vx_new
+EXPERIMENT_NAME=multiturn_all21k_0.8acc_-0.2format_0.4tool_4node_ds1
 BASE_MODEL=/cpfs/user/zhengziwei/HF_HOME/hub/models--Qwen--Qwen2.5-VL-7B-Instruct/snapshots/6e6556e8ce728c7b3e438d75ebf04ec93403dc19
 
-VISUAL_DATASET_TRAIN_1=/cpfs/user/zhengziwei/workspace/agent/VeRL-Agent/data/vlagent/parquet/train_GQA_1t_fail_mh_v6.parquet
-VISUAL_DATASET_TRAIN_2=/cpfs/user/zhengziwei/workspace/agent/VeRL-Agent/data/vlagent/parquet/train_llava_focus_1t_fail_mh_v6.parquet
-VISUAL_DATASET_TRAIN_3=/cpfs/user/zhengziwei/workspace/agent/VeRL-Agent/data/vlagent/parquet/train_spatial_relation_1t_fail_mh_v6.parquet
-VISUAL_DATASET_TRAIN_4=/cpfs/user/zhengziwei/workspace/agent/VeRL-Agent/data/vlagent/parquet/train_vaw_attribute_1t_fail_mh_v6.parquet
+VISUAL_DATASET_TRAIN_1=/cpfs/user/zhengziwei/workspace/agent/VeRL-Agent/data/vlagent/parquet/train_GQA_1t_fail.parquet
+VISUAL_DATASET_TRAIN_2=/cpfs/user/zhengziwei/workspace/agent/VeRL-Agent/data/vlagent/parquet/train_llava_focus_1t_fail.parquet
+VISUAL_DATASET_TRAIN_3=/cpfs/user/zhengziwei/workspace/agent/VeRL-Agent/data/vlagent/parquet/train_spatial_relation_1t_fail.parquet
+VISUAL_DATASET_TRAIN_4=/cpfs/user/zhengziwei/workspace/agent/VeRL-Agent/data/vlagent/parquet/train_vaw_attribute_1t_fail.parquet
 
-VISUAL_DATASET_VAL_1=/cpfs/user/zhengziwei/workspace/agent/VeRL-Agent/data/vlagent/parquet/val_GQA_1t_fail_mh_v6.parquet
-VISUAL_DATASET_VAL_2=/cpfs/user/zhengziwei/workspace/agent/VeRL-Agent/data/vlagent/parquet/val_llava_focus_1t_fail_mh_v6.parquet
-VISUAL_DATASET_VAL_3=/cpfs/user/zhengziwei/workspace/agent/VeRL-Agent/data/vlagent/parquet/val_spatial_relation_1t_fail_mh_v6.parquet
-VISUAL_DATASET_VAL_4=/cpfs/user/zhengziwei/workspace/agent/VeRL-Agent/data/vlagent/parquet/val_vaw_attribute_1t_fail_mh_v6.parquet
+VISUAL_DATASET_VAL_1=/cpfs/user/zhengziwei/workspace/agent/VeRL-Agent/data/vlagent/parquet/val_GQA_1t_fail.parquet
+VISUAL_DATASET_VAL_2=/cpfs/user/zhengziwei/workspace/agent/VeRL-Agent/data/vlagent/parquet/val_llava_focus_1t_fail.parquet
+VISUAL_DATASET_VAL_3=/cpfs/user/zhengziwei/workspace/agent/VeRL-Agent/data/vlagent/parquet/val_spatial_relation_1t_fail.parquet
+VISUAL_DATASET_VAL_4=/cpfs/user/zhengziwei/workspace/agent/VeRL-Agent/data/vlagent/parquet/val_vaw_attribute_1t_fail.parquet
 
 
 if [ ${RANK} -eq 0 ]; then
@@ -42,7 +42,7 @@ if [ "$RANK" = "0" ]; then
         data.max_prompt_length=4096 \
         data.max_response_length=10240 \
         data.return_raw_chat=True \
-        +data.image_downsample=4 \
+        +data.image_downsample=1 \
         algorithm.adv_estimator=grpo \
         algorithm.kl_ctrl.kl_coef=0.0 \
         actor_rollout_ref.model.path=${BASE_MODEL} \

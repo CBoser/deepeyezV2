@@ -23,7 +23,9 @@ import numpy as np
 import torch
 
 from verl import DataProto
-from verl.utils.import_utils import deprecated
+from collections import Counter, defaultdict
+from functools import partial
+import torch.nn.functional as F
 
 
 @deprecated("verl.utils.metric.reduce_metrics")
@@ -45,6 +47,12 @@ def reduce_metrics(metrics: Dict[str, List[Any]]) -> Dict[str, Any]:
     from verl.utils.metric import reduce_metrics
 
     return reduce_metrics(metrics)
+
+
+def count_turn_num(tensor):
+    padded = F.pad(tensor, (1, 0))
+    diff = padded[:, 1:] - padded[:, :-1]
+    return diff == 1
 
 
 def count_turn_num(tensor):
