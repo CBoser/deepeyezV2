@@ -322,7 +322,7 @@ def execute_tool_call(sample, tokenizer=None, processor=None, pbar=None):
         return {}, 0.0, True, {}
 
     tool_result, reward, done, info = tool.execute(action_string)
-
+    breakpoint()
     # post-process
     if not tool_result:
         tool_result_info = {}
