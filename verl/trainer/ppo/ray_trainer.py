@@ -628,11 +628,8 @@ class RayPPOTrainer:
                 tool_name_key = self.config.actor_rollout_ref.rollout.agent.tool_name_key
                 if tool_name_key and tool_name_key in test_batch.non_tensor_batch.keys():
                     test_gen_batch.non_tensor_batch[tool_name_key] = test_batch.non_tensor_batch.pop(tool_name_key)
-                
-                if "origin_multi_modal_data" in test_batch.non_tensor_batch:
-                    test_gen_batch.non_tensor_batch["origin_multi_modal_data"] = test_batch.non_tensor_batch.pop("origin_multi_modal_data")
-                if "multi_modal_inputs" in test_batch.non_tensor_batch:
-                    test_gen_batch.non_tensor_batch["multi_modal_inputs"] = test_batch.non_tensor_batch.pop("multi_modal_inputs")
+                if 'env_info' in test_batch.non_tensor_batch.keys():
+                    test_gen_batch.non_tensor_batch['env_info'] = test_batch.non_tensor_batch['env_info']
 
             test_gen_batch.meta_info = {
                 "eos_token_id": self.tokenizer.eos_token_id,
@@ -907,14 +904,12 @@ class RayPPOTrainer:
         to construct the PPO dataflow.
         The light-weight advantage computation is done on the driver process.
         """
-        from omegaconf import OmegaConf
         from verl.utils.tracking import Tracking
+        from omegaconf import OmegaConf
+
         logger = Tracking(
-            project_name=self.config.trainer.project_name,
-            experiment_name=self.config.trainer.experiment_name,
-            default_backend=self.config.trainer.logger,
             trainer_config=self.config,
-            config=OmegaConf.to_container(self.config, resolve=True),
+            config=OmegaConf.to_container(self.config, resolve=True)
         )
 
         self.global_steps = 0
@@ -978,12 +973,9 @@ class RayPPOTrainer:
                     tool_name_key = self.config.actor_rollout_ref.rollout.agent.tool_name_key
                     if tool_name_key and tool_name_key in batch.non_tensor_batch.keys():
                         gen_batch.non_tensor_batch[tool_name_key] = batch.non_tensor_batch.pop(tool_name_key)
-
-                    if "origin_multi_modal_data" in batch.non_tensor_batch:
-                        gen_batch.non_tensor_batch["origin_multi_modal_data"] = batch.non_tensor_batch.pop("origin_multi_modal_data")
-                    if "multi_modal_inputs" in batch.non_tensor_batch:
-                        gen_batch.non_tensor_batch["multi_modal_inputs"] = batch.non_tensor_batch.pop("multi_modal_inputs")
-                    print(f' [DEBUG trainer] {gen_batch.non_tensor_batch.keys()=}')
+                        # print(f' [DEBUG trainer] {gen_batch.non_tensor_batch.keys()=}')
+                    if 'env_info' in batch.non_tensor_batch.keys():
+                        gen_batch.non_tensor_batch['env_info'] = batch.non_tensor_batch['env_info']
 
                 is_last_step = self.global_steps >= self.total_training_steps
 
@@ -1117,11 +1109,6 @@ class RayPPOTrainer:
                             batch.batch['token_level_rewards'] += batch.batch['env_reward']
                             # print(f' [DEBUG reward] rewards_after={batch.batch["token_level_rewards"].mean().item()}')
 
-                        if 'env_reward' in batch.batch.keys():
-                            # print(f' [DEBUG reward] rewards_before={batch.batch["token_level_rewards"].mean().item()}')
-                            batch.batch['token_level_rewards'] += batch.batch['env_reward']
-                            # print(f' [DEBUG reward] rewards_after={batch.batch["token_level_rewards"].mean().item()}')
-
                         # compute advantages, executed on the driver process
 
                         norm_adv_by_std_in_grpo = self.config.algorithm.get("norm_adv_by_std_in_grpo", True)  # GRPO adv normalization factor
@@ -1200,18 +1187,6 @@ class RayPPOTrainer:
 
                 # TODO: make a canonical logger that supports various backend
                 logger.log(data=metrics, step=self.global_steps, batch=batch, tokenizer=self.tokenizer)
-
-                progress_bar.update(1)
-                self.global_steps += 1
-
-                if do_profile:
-                    self.actor_rollout_wg.stop_profile()
-                    if self.use_reference_policy:
-                        self.ref_policy_wg.stop_profile()
-                    if self.use_critic:
-                        self.critic_wg.stop_profile()
-                    if self.use_rm:
-                        self.rm_wg.stop_profile()
 
                 if is_last_step:
                     pprint(f"Final validation metrics: {last_val_metrics}")

@@ -34,9 +34,9 @@ def process_raw_image(image: dict):
     return image
 
 
-def process_image(image: Union[dict, Image.Image]) -> Image.Image:
-    # if isinstance(image, dict) and 'bytes' in image.keys():
-    #     image_object = Image.open(BytesIO(image['bytes']))
+def process_image(image: Union[dict, Image.Image], blur_strength=None, downsample=None) -> Image.Image:
+    if isinstance(image, dict):
+        image = Image.open(BytesIO(image['bytes']))
 
     if isinstance(image, Image.Image):
         image = image.convert("RGB")

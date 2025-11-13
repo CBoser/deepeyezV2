@@ -13,6 +13,7 @@ from io import BytesIO
 from PIL import Image
 import base64
 
+system_prompt = "You are a helpful assistant. The user will ask you a question and you as the assistant solve it. You FIRST think about the reasoning process as an internal monologue and then provide the final answer. The reasoning process and answer must be enclosed within <think> </think> and <answer> </answer> tags, respectively."
 
 query_text = """Question: {question}
 If the images provided above are not sufficient to answer the user's question, please generate grouding results in JSON format:
@@ -25,6 +26,20 @@ The zoomed-in images of your grounding results will be provided in next turn.
 
 Otherwise, please put your final answer in <answer> </answer> tags.
 """
+
+# query_text_v2 = """Question: {question}
+# If the images provided above are not sufficient to answer the user's question, please generate grouding results in JSON format:
+# ```json
+# [
+#     {{"bbox_2d": [x1, y1, x2, y2], "label": "label name"}}
+# ]
+# ```
+# The zoomed-in images of your grounding results will be provided in next turn.
+
+# Otherwise, please put your final answer in <answer> </answer> tags.
+
+# You **CANNOT** generate grounding results and simultaneously provide a final answer!
+# """
 
 baseline_query = "{question} First output the thinking process in <think> </think> tags and then output the final answer in <answer> </answer> tags."
 
@@ -53,7 +68,7 @@ def make_map_fn(split, data_source, env_name):
             "prompt": [
                 {
                     "role": "system",
-                    "content": "",
+                    "content": system_prompt,
                 },
                 {
                     "role": "user",
@@ -104,9 +119,9 @@ def construct_rl_prompt(args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--local_jsonl_path', default='./data/vlagent/distilled/vaw_attribute_1t_fail.json')
+    parser.add_argument('--local_jsonl_path', default='./data/vlagent/distilled/GQA_1t_fail.json')
     parser.add_argument('--output_dir', default='./data/vlagent/parquet')
-    parser.add_argument('--note', default='vaw_attribute_1t_fail')
+    parser.add_argument('--note', default='GQA_1t_fail_v3')
     # parser.add_argument('--val_size', default=1000)
     parser.add_argument('--val_ratio', default=0.1)
     parser.add_argument('--data_source', default='vl_agent')

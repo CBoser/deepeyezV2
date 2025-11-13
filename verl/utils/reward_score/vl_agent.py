@@ -2,16 +2,14 @@ from openai import OpenAI
 import requests
 import random
 import re
-import os
-import re
-from typing import Optional
-from math_verify import parse, verify
 
-openai_api_key = "EMPTY"
+openai_api_key = "zzw-114514"
+
 openai_api_base_list = [
-    # "http://172.30.52.123:8000/v1",
-    # "http://10.39.3.123:18901/v1",
-    os.environ.get("LLM_AS_A_JUDGE_BASE", "http://10.39.2.72:18901/v1"),
+    # "http://10.39.11.28:10000/v1",
+    # "http://10.39.11.27:10000/v1",
+    # "http://10.39.23.170:8000/v1",
+    "http://10.39.7.176:8000/v1"
 ]
 
 client_list = []
@@ -28,6 +26,10 @@ for client in client_list:
     # response = requests.get(f"{api_base}/models")
     # models = response.json()
     # model_name_list.append(models['data'][0]['id'])
+
+
+
+
 
 
 
@@ -192,13 +194,11 @@ def extract_answer(text: str):
 
 def compute_score(predict_str: str, ground_truth: str, extra_info=None) -> float:
     is_format_error = False
-    predict_str = "<think>" + predict_str
-    count_think_1 = predict_str.count("<think>")
-    count_think_2 = predict_str.count("</think>")
-    if count_think_1 != count_think_2:
-        is_format_error = True
-    if count_think_1 == 0 or count_think_2 == 0:
-        is_format_error = True
+    # predict_str = "<think>" + predict_str
+    # count_think_1 = predict_str.count("<think>")
+    # count_think_2 = predict_str.count("</think>")
+    # if count_think_1 != count_think_2:
+    #     is_format_error = True
 
     count_vision_1 = predict_str.count("<tool_response>")
     # count_vision_2 = predict_str.count("</tool_response>")
