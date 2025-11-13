@@ -34,9 +34,9 @@ def process_raw_image(image: dict):
     return image
 
 
-def process_image(image: Union[dict, Image.Image], blur_strength=None, downsample=None) -> Image.Image:
-    if isinstance(image, dict):
-        image = Image.open(BytesIO(image['bytes']))
+def process_image(image: Union[dict, Image.Image]) -> Image.Image:
+    # if isinstance(image, dict) and 'bytes' in image.keys():
+    #     image_object = Image.open(BytesIO(image['bytes']))
 
     if isinstance(image, Image.Image):
         image = image.convert("RGB")
@@ -50,7 +50,7 @@ def process_image(image: Union[dict, Image.Image], blur_strength=None, downsampl
 
     if "bytes" in image:
         assert "image" not in image, "Cannot have both `bytes` and `image`"
-        image["image"] = BytesIO(image["bytes"])
+        image["image"] = Image.open(BytesIO(image["bytes"]))
 
     return fetch_image(image, blur_strength=blur_strength, downsample=downsample)
 

@@ -13,14 +13,15 @@ from math import ceil, floor
 class VisualToolBoxV5(ToolBase):
     name = "visual_toolbox_v5"
     # user_prompt = "Here is the cropped image returned after you calling the function {}.\nIf the images provided above are sufficient to answer the user's question, please put your final answer within <answer></answer>. Otherwise you can continue to call tools within <tool_call></tool_call>."
-    user_prompt = PROMPT.USER_PROMPT_V5
+    user_prompt = PROMPT.TURN_PROMPT_V5
+    max_action_per_turn = 3
     def __init__(self, _name, _desc, _params, **kwargs):
         super().__init__(
             name=self.name,
         )
         self.chatml_history = []
         self.multi_modal_data = None  # To store the current image being processed
-        self.origin_multi_modal_data = None
+
 
     def extract_answer(self, action_string: str) -> Dict[str, any]:
         answer = re.findall(r'<answer>(.*?)</answer>', action_string, re.DOTALL)
@@ -44,9 +45,9 @@ class VisualToolBoxV5(ToolBase):
             info: Additional info.
         """
         
-        # answer = self.extract_answer(action_string)
-        # if answer:
-        #     return "", 0.0, True, {}
+        answer = self.extract_answer(action_string)
+        if answer:
+            return "", 0.0, True, {}
         action = self.extract_action(action_string)
         if not action:
             return "", 0.0, True, {}
@@ -57,6 +58,8 @@ class VisualToolBoxV5(ToolBase):
         #     obs = "<|im_end|>\n<|im_start|>user\n" + f"Error: {str(error_msg)}" + "<|im_end|>\n<|im_start|>assistant\n"
         #     info = {"error": str(e), "status": "failed"}
         #     return obs, 0.0, False, {}
+        if len(action) > self.max_action_per_turn:
+            action = action[:self.max_action_per_turn]
         current_image = []
         tool_call_str = "\n"
         try:
@@ -64,23 +67,20 @@ class VisualToolBoxV5(ToolBase):
                 tool_call_str += act['tool_call'] 
                 tool_call_str += "\n"
                 tool_call = json.loads(act['tool_call'])
-
                 tool_name = tool_call["name"]
                 args = tool_call["arguments"]
 
-                if tool_name == "get_focused_image":
+                if tool_name == "image_zoom_in_tool":
                     # Zoom in by cropping the image
                     # image_path = args["image_path"]
                     bbox = args["bbox_2d"]
-                    cropped_bbox = self.maybe_resize_bbox(*bbox)
+                    bbox = self.maybe_resize_bbox(*bbox)
                     if not bbox:
-                        raise ValueError(f"GROUNDING ARGUMENTS ARE INVALID")
-                    pil_img = self.origin_multi_modal_data['image'][0]
-                    ds_width, ds_height = pil_img.width / self.width, pil_img.height / self.height
-                    resized_bbox = [int(cropped_bbox[0] * ds_width), int(cropped_bbox[1] * ds_height),
-                                    int(cropped_bbox[2] * ds_width), int(cropped_bbox[3] * ds_height)]
-                    cropped_image = pil_img.crop(resized_bbox)
-                    current_image.append(cropped_image)
+                        raise ValueError(f"ZOOM IN ARGUMENTS ARE INVALID")
+                    # img = Image.open(image_path)
+                    img = self.multi_modal_data['image'][0]
+                    cropped_img = img.crop(bbox)
+                    current_image.append(cropped_img)
                     
                 elif tool_name == "image_rotate_tool":
                     # Rotate the image
@@ -94,9 +94,14 @@ class VisualToolBoxV5(ToolBase):
                 else:
                     raise ValueError(f"Unknown tool name: {tool_name}")
             # Prepare the observation
-            image_token = "<image>" * len(current_image)
+            tool_response = "<tool_response>" +"\n" +  "<image>" + "\n" + "</tool_response>" + "\n"
+            tool_response = tool_response * len(current_image)
+            # obs = {
+            #     "prompt": "<|im_end|>\n<|im_start|>user\n" + "<tool_response>" + image_token + "</tool_response>" + self.user_prompt.format(tool_call_str) + "<|im_end|>\n<|im_start|>assistant\n",
+            #     "multi_modal_data": {"image": current_image}
+            # }
             obs = {
-                "prompt": "<|im_end|>\n<|im_start|>user\n" + "<tool_response>" + image_token + "</tool_response>" + self.user_prompt.format(tool_call_str) + "<|im_end|>\n<|im_start|>assistant\n",
+                "prompt": "<|im_end|>\n<|im_start|>user\n" + tool_response + self.user_prompt+ "<|im_end|>\n<|im_start|>assistant\n",
                 "multi_modal_data": {"image": current_image}
             }
             reward = 0.0  # Reward for successful tool call with correct JSON
@@ -115,8 +120,7 @@ class VisualToolBoxV5(ToolBase):
 
     def reset(self, raw_prompt, multi_modal_data, origin_multi_modal_data, **kwargs):
         self.chatml_history = raw_prompt
-        self.multi_modal_data = multi_modal_data
-        self.origin_multi_modal_data = origin_multi_modal_data
+        self.multi_modal_data = origin_multi_modal_data
         assert 'image' in self.multi_modal_data.keys(), f'[ERROR] {origin_multi_modal_data=}'
         assert len(self.multi_modal_data['image']) > 0, f'[ERROR] {self.multi_modal_data["image"]=}'
         

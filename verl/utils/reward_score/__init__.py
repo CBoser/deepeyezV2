@@ -12,9 +12,25 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # from . import gsm8k, math, prime_math, prime_code
-import torch
 
-def _default_compute_score(data_source, solution_str, ground_truth, extra_info=None):
+from verl.utils.import_utils import deprecated
+
+def default_compute_score(data_source, solution_str, ground_truth, extra_info=None, sandbox_fusion_url=None, concurrent_semaphore=None):
+    """Compute the score for a given solution based on the data source.
+
+    Args:
+        data_source (str): The source dataset identifier which determines the scoring method.
+        solution_str (str): The solution string to be evaluated.
+        ground_truth (str): The ground truth answer for comparison.
+        extra_info (dict, optional): Additional information that might be needed for scoring. Defaults to None.
+
+    Returns:
+        float: The computed score as a floating point number. If the result is a dictionary,
+               it returns the dictionary instead.
+
+    Raises:
+        NotImplementedError: If the reward function is not implemented for the given data source.
+    """
     if data_source == "openai/gsm8k":
         from . import gsm8k
 
@@ -30,10 +46,12 @@ def _default_compute_score(data_source, solution_str, ground_truth, extra_info=N
 
         # from . import math_verify
         # res = math_verify.compute_score(solution_str, ground_truth)
-    elif data_source == "math_dapo" or data_source.startswith("aime"):
-        from . import math_dapo
 
-        res = math_dapo.compute_score(solution_str, ground_truth)
+    # elif data_source == "math_dapo" or data_source.startswith("aime"):
+    #     from . import math_dapo
+
+    #     res = math_dapo.compute_score(solution_str, ground_truth)
+
     elif data_source in [
         "numina_aops_forum",
         "numina_synthetic_math",
@@ -46,9 +64,18 @@ def _default_compute_score(data_source, solution_str, ground_truth, extra_info=N
 
         res = prime_math.compute_score(solution_str, ground_truth)
     elif data_source in ["codecontests", "apps", "codeforces", "taco"]:
-        from . import prime_code
+        # Use the passed sandbox_fusion_url if available
+        if sandbox_fusion_url:
+            from . import sandbox_fusion
 
-        res = prime_code.compute_score(solution_str, ground_truth, continuous=True)
+            # Pass the URL directly, ground_truth likely contains test cases here
+            res = sandbox_fusion.compute_score(sandbox_fusion_url, concurrent_semaphore, solution_str, ground_truth, continuous=True)
+        else:
+            # If no sandbox URL is provided, fall back to prime_code or raise error
+            from . import prime_code
+
+            # Assuming prime_code doesn't need the URL
+            res = prime_code.compute_score(solution_str, ground_truth, continuous=True)
     elif data_source in ["hiyouga/geometry3k"]:
         from . import geo3k
 
@@ -61,14 +88,63 @@ def _default_compute_score(data_source, solution_str, ground_truth, extra_info=N
         from . import agent
         res = agent.compute_score_eval(solution_str, ground_truth)
 
-    elif data_source in ['vl_agent']:
+    elif data_source in ["vstar", "vl_agent", "chart", "browsecomp", "r1-searcher-v3", "seekworld"]:
         from . import vl_agent
         res = vl_agent.compute_score(solution_str, ground_truth, extra_info)
-    elif data_source in ['vstar']:
+
+    elif data_source in ["skywork-math", "revisual-r1"]:
         from . import vl_agent
-        res = vl_agent.compute_score(solution_str, ground_truth, extra_info)
+        res = vl_agent.compute_score_math_with_boxed(solution_str, ground_truth, extra_info)
+
+    elif data_source in ["thinklite_eureka", "thinklite_eureka-no_tool", "xince"]:
+        from . import vl_agent
+        res = vl_agent.compute_score_math(solution_str, ground_truth, extra_info)
+
+    elif data_source in [
+        'vstar-test', 
+        'seekworld-test', 
+        'visulogic-test', 
+        'ocr_reasoning-test',
+    ] or data_source.startswith("hrbench-test"):
+        from . import vl_agent
+        res = vl_agent.compute_score_acc(solution_str, ground_truth, extra_info, data_source=data_source)
+
+    elif data_source in ['aime24', 'aime25']:
+        from . import vl_agent
+        res = vl_agent.evaluate_aime(solution_str, ground_truth, extra_info)
+
+    elif data_source in [
+        'mmsearch-test', 
+        'simpleqa-openai-test', 
+        'chinese_simpleqa-test', 
+        'browsecomp-zh-test', 
+        'browsecomp-openai-test', 
+        'simple-vqa-test', 
+        'zero-bench-test',
+        'zero-bench-no-tools',
+    ]:
+        from . benchmark import evaluate_chinese_simpleqa, evaluate_browsecomp_zh, evaluate_openai_brosecomp_hle, evaluate_openai_simpleqa
+        if data_source in ['simpleqa-openai-test', 'mmsearch-test', 'zero-bench-test', 'zero-bench-no-tools']:
+            res = evaluate_openai_simpleqa(solution_str, ground_truth, extra_info)
+        elif data_source in ['chinese_simpleqa-test', 'simple-vqa-test']:
+            res = evaluate_chinese_simpleqa(solution_str, ground_truth, extra_info)
+        elif data_source == 'browsecomp-openai-test':
+            res = evaluate_openai_brosecomp_hle(solution_str, ground_truth, extra_info)
+        elif data_source == 'browsecomp-zh-test':
+            res = evaluate_browsecomp_zh(solution_str, ground_truth, extra_info)
+        else:
+            raise ValueError(f" [ERROR] invalid {data_source=}")
+
     elif data_source in ["frozenlake"]:
         res = 0.0
+        
+    elif data_source in ["collab_code"]:
+        res = 0.0
+
+    elif data_source in ["searchR1_nq", "searchR1_triviaqa", "searchR1_popqa", "searchR1_hotpotqa", "searchR1_2wikimultihopqa", "searchR1_musique", "searchR1_bamboogle"]:
+        from . import search_r1_like_qa_em
+
+        res = search_r1_like_qa_em.compute_score(solution_str, ground_truth)
 
     else:
         raise NotImplementedError(f"Reward function is not implemented for {data_source=}")
@@ -79,3 +155,14 @@ def _default_compute_score(data_source, solution_str, ground_truth, extra_info=N
         return float(res)
     else:
         return float(res[0])
+
+
+@deprecated("verl.utils.reward_score.default_compute_score")
+def _default_compute_score(data_source, solution_str, ground_truth, extra_info=None, sandbox_fusion_url=None, concurrent_semaphore=None):
+    """
+    Legacy function API to be deprecated. Please use `default_compute_score` instead.
+    """
+    return default_compute_score(data_source, solution_str, ground_truth, extra_info, sandbox_fusion_url, concurrent_semaphore)
+
+
+__all__ = ["default_compute_score"]

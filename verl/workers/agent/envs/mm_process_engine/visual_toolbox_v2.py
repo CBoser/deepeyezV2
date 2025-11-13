@@ -13,6 +13,7 @@ from math import ceil, floor
 class VisualToolBoxV2(ToolBase):
     name = "visual_toolbox_v2"
     # user_prompt = "Here is the cropped image returned after you calling the function {}.\nIf the images provided above are sufficient to answer the user's question, please put your final answer within <answer></answer>. Otherwise you can continue to call tools within <tool_call></tool_call>."
+
     user_prompt = PROMPT.USER_PROMPT_V2
     def __init__(self, _name, _desc, _params, **kwargs):
         super().__init__(
@@ -67,7 +68,7 @@ class VisualToolBoxV2(ToolBase):
             tool_call = json.loads(action.strip())  # 或使用 literal_eval
         except Exception as e:
             error_msg = f"Invalid tool call format: {action.strip()}. Error: {e}"
-            obs = "<|im_end|>\n<|im_start|>user\n" + f"Error: {str(error_msg)}" + "<|im_end|>\n<|im_start|>assistant\n"
+            obs = "<|im_end|>\n<|im_start|>user\n" + f"Error: {str(error_msg)}" + "<|im_end|>\n<|im_start|>assistant\n<think>"
             info = {"error": str(e), "status": "failed"}
             return obs, 0.0, False, {}
         try:
@@ -96,26 +97,26 @@ class VisualToolBoxV2(ToolBase):
                 # image_path = args["image_path"]
                 angle = args["angle"]
                 # img = Image.open(image_path)
-                img = self.origin_multi_modal_data['image'][0]
-                rotated_img = img.rotate(angle)
+                img = self.multi_modal_data['image'][0]
+                rotated_img = img.rotate(angle, expand=True)
                 current_image = rotated_img
                 
             else:
                 raise ValueError(f"Unknown tool name: {tool_name}")
             # Prepare the observation
             obs = {
-                "prompt": "<|im_end|>\n<|im_start|>user\n" + "<tool_response>" +"<image>" + self.user_prompt + "</tool_response>" + "<|im_end|>\n<|im_start|>assistant\n",
+                "prompt": "<|im_end|>\n<|im_start|>user\n" + "<tool_response>" + "<image>" + "</tool_response>" + "<|im_end|>\n<|im_start|>assistant\n<think>",
                 "multi_modal_data": {"image": [current_image]}
             }
             reward = 0.0  # Reward for successful tool call with correct JSON
             done = False
             info = {"status": "success", "tool_used": tool_name}
-            print(f'[DEBUG] SUCCESS ACTION {action_string=}')
+            # print(f'[DEBUG] SUCCESS ACTION {action_string=}')
             return obs, reward, done, info
         except Exception as e:
             # Return an error observation if something goes wrong
-            print(f'[DEBUG] Execute WRONG - {str(e)} {action_string=}')
-            obs = "<|im_end|>\n<|im_start|>user\n" + f"Error: {str(e)}" + "<|im_end|>\n<|im_start|>assistant\n"
+            # print(f'[ERROR] Execute WRONG - {str(e)} {action_string=}')
+            obs = "<|im_end|>\n<|im_start|>user\n" + f"Error: {str(e)}" + "<|im_end|>\n<|im_start|>assistant\n<think>"
             reward = 0.0  # No reward for failed execution
             done = False
             info = {"error": str(e), "status": "failed"}
@@ -137,6 +138,7 @@ class VisualToolBoxV2(ToolBase):
             height = bottom - top
             width = right - left
             assert max(height, width) / min(height, width) <= 100, f"aspect ratio error: {left=}, {top=}, {right=}, {bottom=}"
+            assert min(height, width) > 30, f"{height=}, {width=} is too small"
             return True
         except Exception as err:
             print(f' [ERROR vl_agent #2] {err=}')
@@ -167,7 +169,8 @@ class VisualToolBoxV2(ToolBase):
                 return None
             return [new_left, new_top, new_right, new_bottom]
         return [left, top, right, bottom]
-    
+
+
 if __name__ == "__main__":
     # Example usage (for testing)
     tool = VisualToolBox("visual_toolbox", "Tool for image processing", {})

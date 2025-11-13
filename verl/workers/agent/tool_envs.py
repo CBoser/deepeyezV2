@@ -102,8 +102,12 @@ class ToolBase(metaclass=ToolMeta):
         """
         return json.dumps(self.get_description(), indent=4, ensure_ascii=False)
 
-    @abstractmethod
     def reset(self, *args, **kwargs):
+        """ Called after tool initialization """
+        pass
+
+    def close(self):
+        """ Called before tool destruction """
         pass
 
     @abstractmethod

@@ -16,19 +16,19 @@ from verl.workers.agent.tool_envs import ToolBase, extract_tool_call_contents
 class VLAgentEnvV3(ToolBase):
     name = "vl_agent_v3"
     
-    user_prompt = "If the images are sufficient to answer the user's question, please put your final answer within <answer></answer>. Otherwise generate a new grouding in JSON format."
+    user_prompt = "Here is the zoomed in image for your grounding region {}.\nIf the images provided above are sufficient to answer the user's question, please put your final answer within <answer></answer>. Otherwise generate a new grouding in JSON format."
     answer_start = '<answer>'
     answer_end = '</answer>'
 
-    max_images_per_round = 3
+    max_images_per_round = 1
 
     # <tool_call>\n{"name": "zoom_in", "arguments": {"object": "woman\'s jacket"}}\n</tool_call>
-    
+
     def __init__(self, _name, _desc, _params, **kwargs):
         self.chatml_history = []
         self.multi_modal_data = None
         super().__init__(name=self.name)
-
+    
     def execute(self, action_string, **kwargs):
         answers = extract_tool_call_contents(self.answer_start, self.answer_end, action_string)
         if answers:
@@ -46,31 +46,28 @@ class VLAgentEnvV3(ToolBase):
             invalid_msg = [{"role": "user", "content": "ZOOM IN ARGUMENTS ARE INVALID"}]
             return invalid_msg, 0.0, False, {}
 
-        all_user_msg, all_cropped_images = [], []
+        all_box_list, all_cropped_images = [], []
         for cropped_bbox in cropped_bbox_list:
             try:
                 pil_img = self.multi_modal_data['image'][0]
-                cropped_image = pil_img.crop(cropped_bbox['bbox_2d'])
+                cropped_image = pil_img.crop(cropped_bbox['real_bbox_2d'])
                 all_cropped_images.append(cropped_image)
-                cropped_text = "<image>\nThis is the zoomed in image for grounding region {} of label \"{}\"."
-                cropped_text = cropped_text.format(cropped_bbox['bbox_2d'], cropped_bbox['label'])
-                all_user_msg.append(cropped_text)
+                all_box_list.append(cropped_bbox['bbox_2d'])
             except Exception as err:
                 print(f' [ERROR] crop image failed: {err=}')
                 continue
 
-        if not all_user_msg or not all_cropped_images:
+        if not all_box_list or not all_cropped_images:
             invalid_msg = [{"role": "user", "content": "ZOOM IN AREA IS INVALID"}]
             return invalid_msg, 0.0, False, {}
 
-        if len(all_user_msg) > self.max_images_per_round or len(all_cropped_images) > self.max_images_per_round:
-            all_user_msg = all_user_msg[:self.max_images_per_round]
-            all_cropped_images = all_cropped_images[:self.max_images_per_round]
+        # if len(all_box_list) > self.max_images_per_round or len(all_cropped_images) > self.max_images_per_round:
+        #     all_box_list = all_box_list[:self.max_images_per_round]
+        #     all_cropped_images = all_cropped_images[:self.max_images_per_round]
 
-        all_user_msg.append(self.user_prompt)
-        all_user_msg_text = '\n\n'.join(all_user_msg)
-        chat_msg = [{"role": "user", "content": all_user_msg_text}]
-        obs_dict = {"chat": chat_msg, "multi_modal_data": {"image": all_cropped_images}}
+        all_user_msg = "<image>\n" + self.user_prompt.format(all_box_list[0])
+        chat_msg = [{"role": "user", "content": all_user_msg}]
+        obs_dict = {"chat": chat_msg, "multi_modal_data": {"image": [all_cropped_images[0]]}}
         return obs_dict, 0.0, False, {}
 
 
@@ -79,9 +76,6 @@ class VLAgentEnvV3(ToolBase):
         self.multi_modal_data = origin_multi_modal_data
         assert 'image' in self.multi_modal_data.keys(), f'[ERROR] {origin_multi_modal_data=}'
         assert len(self.multi_modal_data['image']) > 0, f'[ERROR] {self.multi_modal_data["image"]=}'
-        
-        self.height = self.multi_modal_data['image'][0].height
-        self.width = self.multi_modal_data['image'][0].width
 
 
     def get_bbox_2d(self, action_list):
@@ -108,7 +102,9 @@ class VLAgentEnvV3(ToolBase):
                 bbox_result = self.maybe_resize_bbox(*bbox_2d)
                 if not bbox_result:
                     continue
-                bbox_info['bbox_2d'] = bbox_result
+                # bbox_info['bbox_2d'] = bbox_result
+                bbox_info['bbox_2d'] = bbox_2d
+                bbox_info['real_bbox_2d'] = bbox_result
                 bbox_info['label'] = label
                 valid_bbox_list.append(bbox_info)
             except Exception as err:
@@ -123,6 +119,7 @@ class VLAgentEnvV3(ToolBase):
             height = bottom - top
             width = right - left
             assert max(height, width) / min(height, width) <= 100, f"aspect ratio error: {left=}, {top=}, {right=}, {bottom=}"
+            assert min(height, width) > 30, f"{height=}, {width=} is too small"
             return True
         except Exception as err:
             print(f' [ERROR vl_agent #2] {err=}')
@@ -130,6 +127,11 @@ class VLAgentEnvV3(ToolBase):
 
 
     def maybe_resize_bbox(self, left, top, right, bottom):
+        # left *= 4
+        # top *= 4
+        # right *= 4
+        # bottom *= 4
+
         left = max(0, left)
         top = max(0, top)
         right = min(self.width, right)
@@ -145,10 +147,10 @@ class VLAgentEnvV3(ToolBase):
             ratio = 28 / min(height, width)
             new_half_height = ceil(height * ratio * 0.5)
             new_half_width = ceil(width * ratio * 0.5)
-            new_left = floor(center_x - new_half_width)
-            new_right = ceil(center_x + new_half_width)
-            new_top = floor(center_y - new_half_height)
-            new_bottom = ceil(center_y + new_half_height)
+            new_left = max(0, floor(center_x - new_half_width))
+            new_right = min(self.width, ceil(center_x + new_half_width))
+            new_top = max(0, floor(center_y - new_half_height))
+            new_bottom = min(self.height, ceil(center_y + new_half_height))
             if not self.validate_bbox(new_left, new_top, new_right, new_bottom):
                 return None
             return [new_left, new_top, new_right, new_bottom]
@@ -156,9 +158,8 @@ class VLAgentEnvV3(ToolBase):
 
 
 if __name__ == '__main__':
-    tool = VLAgentEnvV2(_name=None, _desc=None, _params=None)
+    tool = VLAgentEnvV3(_name=None, _desc=None, _params=None)
     action_text = """<think> The image shows a building with a steeple and some trees in the foreground. There is a person walking in front of the building, but the details of their clothing are not clear enough to determine the color of their jacket. The image does not provide enough detail to answer the question definitively.\n\nSince the image does not provide sufficient detail to determine the color of the woman\'s jacket, I need to use the zoom_in tool to get a closer look at the person.\n</think>\n<tool_call>\n{"name": "zoom_in", "arguments": {"region": "{\\"bbox_2d\\": [587, 1764, 629, 1860]}"}}\n</tool_call>"""
 
     observation, reward, done, info = tool.execute(action_string=action_text)
     print (observation)
-
