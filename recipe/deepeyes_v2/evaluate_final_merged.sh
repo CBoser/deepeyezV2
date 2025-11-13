@@ -1,0 +1,117 @@
+set -x
+
+PROJECT_NAME="deepeyes-dapo"
+EXPERIMENT_NAME="evaluate_agent_merged"
+
+export SAVE_CHECKPOINT_DIR=/diancpfs/user/fengyuan/verl_checkpoints
+# export VLLM_ATTENTION_BACKEND=XFORMERS # vllm + qwen2-7b with flash_attn has some issues
+
+# training set
+DATA_TRAIN_0_1_2=/cpfs/user/fengyuan/verl_data/minghao_data/data_0.1.2_visual_toolbox_v2_acc_v2.parquet
+DATA_TRAIN_0_8_SPLIT1=/cpfs/user/fengyuan/verl_data/minghao_data/minghao_data_vnew/data_v0.8_visual_toolbox_v2_acc_split1_v2.parquet
+DATA_TRAIN_0_8_SPLIT2=/cpfs/user/fengyuan/verl_data/minghao_data/minghao_data_vnew/data_v0.8_visual_toolbox_v2_acc_split2_v2.parquet
+DATA_TRAIN_THINKLITE=/cpfs/user/fengyuan/verl_data/minghao_data/data_thinklite_reasoning_function_call_acc_v2.parquet
+DATA_TRAIN_XINCE=/cpfs/user/fengyuan/verl_data/minghao_data/train_xince_acc_acc_v2.parquet
+DATA_TRAIN_GEOGUESSR=/cpfs/user/fengyuan/verl_data/minghao_data/seekworld_train_acc_acc_v2.parquet
+
+# benchmark data
+DATA_TEST_VSTAR=/cpfs/user/fengyuan/benchmarks/eval_parquet/vstar-test-filtered.parquet
+DATA_TEST_SEEKWORLD=/cpfs/user/fengyuan/benchmarks/eval_parquet/seekworld-test-filtered.parquet
+DATA_TEST_MMSEARCH=/cpfs/user/fengyuan/benchmarks/eval_parquet/mmsearch-test-filtered-v3.parquet
+DATA_TEST_BROWSECOMP_OPENAI=/cpfs/user/fengyuan/benchmarks/eval_parquet/openai-browsecomp-test.parquet
+DATA_TEST_BROWSECOMP_ZH=/cpfs/user/fengyuan/benchmarks/eval_parquet/browsecomp-zh-test-v3.parquet
+DATA_TEST_CHINESE_SIMPLEQA=/cpfs/user/fengyuan/benchmarks/eval_parquet/chinese_simpleqa-test-v3.parquet
+DATA_TEST_SIMPLEQA_OPENAI=/cpfs/user/fengyuan/benchmarks/eval_parquet/openai-simpleqa-test.parquet
+DATA_TEST_SIMPLE_VQA=/cpfs/user/fengyuan/benchmarks/eval_parquet/simple-vqa-test.parquet
+DATA_TEST_ZERO_BENCH=/cpfs/user/fengyuan/benchmarks/eval_parquet/zero-bench-test-filtered.parquet
+DATA_TEST_OCR_REASONING=/cpfs/user/fengyuan/benchmarks/eval_parquet/ocr-reasoning-test.parquet
+DATA_TEST_VISULOGIC=/cpfs/user/fengyuan/benchmarks/eval_parquet/visulogic-test.parquet
+DATA_TEST_AIME=/cpfs/user/fengyuan/benchmarks/eval_parquet/aime-test.parquet
+
+# split large eval dataset to avoid oom error
+DATA_TEST_SIMPLEQA_OPENAI_SPLIT1=/cpfs/user/fengyuan/benchmarks/eval_parquet/openai-simpleqa-test_split1.parquet
+DATA_TEST_SIMPLEQA_OPENAI_SPLIT2=/cpfs/user/fengyuan/benchmarks/eval_parquet/openai-simpleqa-test_split2.parquet
+
+# hrbench-4k and 8k, different tool version
+DATA_TEST_HRBENCH=/cpfs/user/fengyuan/benchmarks/hrbench/dump/hrbench-ocr.parquet
+DATA_TEST_HRBENCH_TOOLS=/cpfs/user/fengyuan/benchmarks/hrbench/dump/hrbench-ocr-with_rotate_tool.parquet
+DATA_TEST_HRBENCH_ROT=/cpfs/user/fengyuan/benchmarks/hrbench/dump/hrbench-ocr-rot.parquet
+DATA_TEST_HRBENCH_ROT_TOOLS=/cpfs/user/fengyuan/benchmarks/hrbench/dump/hrbench-ocr-rot-with_rotate_tool.parquet
+DATA_TEST_VSTAR_TOOLS=/cpfs/user/fengyuan/benchmarks/eval_parquet/vstar-test-rot.parquet
+
+CUSTOM_STOP='["</tool_call>"]'
+LOSS_AGG_MODE="token-mean"
+export WORKING_DIR=${WORKING_DIR:-"${PWD}"}
+export RUNTIME_ENV=${RUNTIME_ENV:-"${WORKING_DIR}/verl/trainer/runtime_env.yaml"}
+
+REF_MODEL_PATH=/cpfs/user/fengyuan/backbone/qwen25/Qwen2.5-VL-7B-Instruct
+# REF_MODEL_PATH=/cpfs/user/fengyuan/backbone/qwen25/Qwen2.5-VL-32B-Instruct
+# REF_MODEL_PATH=/diancpfs/user/fengyuan/verl_checkpoints/deepeyes-dapo/dapo_7b_debug_v16/global_step_32/actor/huggingface
+# REF_MODEL_PATH=/diancpfs/user/fengyuan/verl_checkpoints/deepeyes-dapo/dapo_32b_debug_v1/global_step_152/actor/huggingface
+# REF_MODEL_PATH=/diancpfs/user/fengyuan/verl_checkpoints/xhs-deepeyes/qwen_7b_agent_merged_v19/global_step_160/actor/huggingface
+# REF_MODEL_PATH=/diancpfs/user/fengyuan/verl_checkpoints/deepeyes-dapo/reproduce_v1_7b_v0/global_step_104/actor/huggingface
+REF_MODEL_PATH=/diancpfs/user/fengyuan/verl_checkpoints/xhs-deepeyes/qwen_32b_agent_merged_v10/global_step_104/actor/huggingface
+
+# VAL_FILES='[${DATA_TEST_VSTAR},${DATA_TEST_SEEKWORLD},${DATA_TEST_MMSEARCH},${DATA_TEST_OCR_REASONING},${DATA_TEST_VISULOGIC},${DATA_TEST_ZERO_BENCH},${DATA_TEST_SIMPLE_VQA},${DATA_TEST_BROWSECOMP_OPENAI},${DATA_TEST_BROWSECOMP_ZH},${DATA_TEST_CHINESE_SIMPLEQA},${DATA_TEST_SIMPLEQA_OPENAI}]]'
+
+PYTHONUNBUFFERED=1 python3 -m recipe.deepeyes_v2.main_dapo \
+    +debug=False \
+    +vs_debug=False \
+    data.train_files=[${DATA_TRAIN_XINCE}] \
+    data.val_files=[${DATA_TEST_SEEKWORLD}] \
+    data.train_batch_size=32 \
+    data.max_prompt_length=8192 \
+    data.max_response_length=20480 \
+    data.return_raw_chat=True \
+    algorithm.adv_estimator=grpo \
+    algorithm.use_kl_in_reward=False \
+    algorithm.kl_ctrl.kl_coef=0.0 \
+    actor_rollout_ref.model.path=${REF_MODEL_PATH} \
+    actor_rollout_ref.model.use_remove_padding=True \
+    actor_rollout_ref.model.enable_gradient_checkpointing=True \
+    actor_rollout_ref.model.enable_activation_offload=True \
+    actor_rollout_ref.actor.optim.lr=1e-6 \
+    actor_rollout_ref.actor.clip_ratio_low=0.2 \
+    actor_rollout_ref.actor.clip_ratio_high=0.28 \
+    actor_rollout_ref.actor.clip_ratio_c=10.0 \
+    actor_rollout_ref.actor.ppo_mini_batch_size=32 \
+    actor_rollout_ref.actor.ppo_micro_batch_size_per_gpu=1 \
+    actor_rollout_ref.actor.use_kl_loss=False \
+    actor_rollout_ref.actor.kl_loss_coef=0.0 \
+    actor_rollout_ref.actor.kl_loss_type=low_var_kl \
+    actor_rollout_ref.actor.entropy_coeff=0.0 \
+    actor_rollout_ref.actor.loss_agg_mode=${LOSS_AGG_MODE} \
+    actor_rollout_ref.actor.checkpoint.save_contents=['model','hf_model','optimizer','extra'] \
+    actor_rollout_ref.actor.ulysses_sequence_parallel_size=1 \
+    actor_rollout_ref.rollout.log_prob_micro_batch_size_per_gpu=1 \
+    actor_rollout_ref.rollout.tensor_model_parallel_size=2 \
+    actor_rollout_ref.rollout.name=vllm \
+    actor_rollout_ref.rollout.n=4 \
+    actor_rollout_ref.rollout.max_num_batched_tokens=8192 \
+    actor_rollout_ref.rollout.gpu_memory_utilization=0.6 \
+    actor_rollout_ref.rollout.enforce_eager=False \
+    actor_rollout_ref.rollout.free_cache_engine=False \
+    actor_rollout_ref.rollout.enable_chunked_prefill=False \
+    actor_rollout_ref.actor.fsdp_config.param_offload=True \
+    actor_rollout_ref.actor.fsdp_config.optimizer_offload=True \
+    actor_rollout_ref.ref.log_prob_micro_batch_size_per_gpu=1 \
+    actor_rollout_ref.ref.fsdp_config.param_offload=True \
+    actor_rollout_ref.rollout.agent.activate_agent=True \
+    actor_rollout_ref.rollout.agent.tool_name_key=env_name \
+    actor_rollout_ref.rollout.agent.single_response_max_tokens=20480 \
+    actor_rollout_ref.rollout.agent.max_turns=16 \
+    actor_rollout_ref.rollout.agent.concurrent_workers=1 \
+    actor_rollout_ref.rollout.agent.custom_stop=${CUSTOM_STOP} \
+    actor_rollout_ref.rollout.agent.show_tqdm=True \
+    reward_model.reward_manager=dapo_async \
+    reward_model.num_workers=32 \
+    trainer.critic_warmup=0 \
+    trainer.logger=['console'] \
+    trainer.val_before_train=True \
+    +trainer.val_only=True \
+    trainer.n_gpus_per_node=8 \
+    trainer.nnodes=${WORLD_SIZE} \
+    trainer.save_freq=8000 \
+    trainer.test_freq=8000 \
+    trainer.project_name=${PROJECT_NAME} \
+    trainer.experiment_name=${EXPERIMENT_NAME} 2>&1 | tee ./logs/${EXPERIMENT_NAME}.log
