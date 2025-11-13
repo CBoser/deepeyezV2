@@ -101,6 +101,8 @@ class RLHFDataset(Dataset):
         self.cache_dir = os.path.expanduser(config.get("cache_dir", "~/.cache/verl/rlhf"))
         self.prompt_key = config.get("prompt_key", "prompt")
         self.image_key = config.get("image_key", "images")
+        self.image_blur = config.get("image_blur", None)
+        self.image_downsample = config.get("image_downsample", None)
         self.video_key = config.get("video_key", "videos")
         self.max_prompt_length = config.get("max_prompt_length", 1024)
         self.return_raw_chat = config.get("return_raw_chat", False)

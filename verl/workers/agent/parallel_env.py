@@ -158,9 +158,13 @@ def agent_rollout_loop(config, vllm_engine, vllm_inputs, prompts, multi_modal_in
     reward_tensor_list = []
     active_mask = []
     mm_input_list = []
+    turn_cnt_list = []
     tool_call_cnt_list = []
     # TODO: support visualizing rollout_log_probs
     rollout_log_probs = []
+
+    env = ParallelEnv(config.agent, tokenizer, processor)
+    env.reset(prompts, vllm_inputs, n=sampling_params.n)
 
     env = ParallelEnv(config.agent, tokenizer, processor)
     env.reset(prompts, vllm_inputs, n=sampling_params.n)
@@ -313,7 +317,8 @@ def agent_rollout_loop(config, vllm_engine, vllm_inputs, prompts, multi_modal_in
     reward_tensor_list = [reward[: max_total_length] for reward in reward_tensor_list]
     reward_tensor = pad_2d_list_to_length(reward_tensor_list, 0.0, max_total_length).to(target_device)
 
-    tool_call_tensor = torch.tensor(tool_call_cnt_list, dtype=torch.float32).to(target_device).unsqueeze(1)
+    turn_cnt_tensor = torch.tensor(turn_cnt_list, dtype=torch.float32).to(target_device).unsqueeze(1)
+    tool_cnt_tensor = torch.tensor(tool_call_cnt_list, dtype=torch.float32).to(target_device).unsqueeze(1)
     return DataProto.from_dict(
         tensors={
             "response": state_tensor[:, -config.response_length: ],
@@ -321,7 +326,8 @@ def agent_rollout_loop(config, vllm_engine, vllm_inputs, prompts, multi_modal_in
             "attention_mask": attn_mask_tensor,
             "position_ids": position_ids_tensor,
             "env_reward": reward_tensor[:, -config.response_length: ],
-            "tool_cnt": tool_call_tensor,
+            "turn_cnt": turn_cnt_tensor,
+            "tool_cnt": tool_cnt_tensor,
         },
         non_tensors={"multi_modal_inputs": mm_input_list} if processor is not None else None
     )
@@ -336,7 +342,7 @@ def execute_tool_call(sample, tokenizer=None, processor=None, pbar=None):
         return {}, 0.0, True, {}
 
     tool_result, reward, done, info = tool.execute(action_string)
-    breakpoint()
+
     # post-process
     if not tool_result:
         tool_result_info = {}
