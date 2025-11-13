@@ -1,6 +1,7 @@
 set -x
 
-cd /cpfs/user/zhengziwei/workspace/agent/VeRL-Agent
+PROJECT_NAME="agent_vlagent"
+EXPERIMENT_NAME="visual_agent_downsample_v8"
 
 export HF_HOME=/cpfs/user/zhengziwei/HF_HOME
 export PATH=/cpfs/user/zhengziwei/ENV/miniconda3/envs/verl_agent/bin:$PATH
@@ -8,25 +9,33 @@ export VLLM_USE_MODELSCOPE=false
 export NCCL_DEBUG=WARN
 export WANDB_API_KEY=7d84dc21bf59f2e0dd3f214b75a53786cd8fc5d8
 
-PROJECT_NAME=vlagent_grpo
-EXPERIMENT_NAME=multiturn_gqa6k_0.8acc_-0.2format_0.4tool
-BASE_MODEL=/cpfs/user/zhengziwei/HF_HOME/hub/models--Qwen--Qwen2.5-VL-7B-Instruct/snapshots/6e6556e8ce728c7b3e438d75ebf04ec93403dc19
-VISUAL_DATASET_TRAIN=/cpfs/user/zhengziwei/workspace/agent/VeRL-Agent/data/vlagent/parquet/train_GQA_1t_fail.parquet
-VISUAL_DATASET_TEST=/cpfs/user/zhengziwei/workspace/agent/VeRL-Agent/data/vlagent/parquet/val_GQA_1t_fail.parquet
+# VISUAL_DATASET_TRAIN_1=/cpfs/user/fengyuan/verl_data/visual_agent/visual_agent_train_split1.parquet
+# VISUAL_DATASET_TRAIN_2=/cpfs/user/fengyuan/verl_data/visual_agent/visual_agent_train_split2.parquet
+# VISUAL_DATASET_TEST=/cpfs/user/fengyuan/verl_data/visual_agent/visual_agent_test.parquet
 
+VISUAL_DATASET_TRAIN_1=/cpfs/user/fengyuan/verl_data/visual_agent/train_vaw_attribute_1t_fail.parquet
+VISUAL_DATASET_TRAIN_2=/cpfs/user/fengyuan/verl_data/visual_agent/train_GQA_1t_fail.parquet
+VISUAL_DATASET_TRAIN_3=/cpfs/user/fengyuan/verl_data/visual_agent/train_llava_focus_1t_fail.parquet
+VISUAL_DATASET_TRAIN_4=/cpfs/user/fengyuan/verl_data/visual_agent/train_spatial_relation_1t_fail.parquet
+
+VISUAL_DATASET_VAL_1=/cpfs/user/fengyuan/verl_data/visual_agent/val_llava_focus_1t_fail.parquet
+VISUAL_DATASET_VAL_2=/cpfs/user/fengyuan/verl_data/visual_agent/val_GQA_1t_fail.parquet
+VISUAL_DATASET_VAL_3=/cpfs/user/fengyuan/verl_data/visual_agent/val_spatial_relation_1t_fail.parquet
+VISUAL_DATASET_VAL_4=/cpfs/user/fengyuan/verl_data/visual_agent/val_vaw_attribute_1t_fail.parquet
 
 PYTHONUNBUFFERED=1 python3 -m verl.trainer.main_ppo \
-    data.train_files=${VISUAL_DATASET_TRAIN} \
-    data.val_files=${VISUAL_DATASET_TEST} \
-    data.train_batch_size=128 \
+    data.train_files=[${VISUAL_DATASET_TRAIN_1},${VISUAL_DATASET_TRAIN_2},${VISUAL_DATASET_TRAIN_3},${VISUAL_DATASET_TRAIN_4}] \
+    data.val_files=[${VISUAL_DATASET_VAL_1},${VISUAL_DATASET_VAL_2},${VISUAL_DATASET_VAL_3},${VISUAL_DATASET_VAL_4}] \
+    data.train_batch_size=256 \
     data.max_prompt_length=4096 \
-    data.max_response_length=10240 \
+    data.max_response_length=16384 \
     data.return_raw_chat=True \
-    algorithm.adv_estimator=grpo \
+    data.filter_overlong_prompts=True \
+    algorithm.adv_estimator=reinforce_plus_plus \
     algorithm.kl_ctrl.kl_coef=0.0 \
     actor_rollout_ref.model.path=${BASE_MODEL} \
     actor_rollout_ref.actor.optim.lr=1e-6 \
-    actor_rollout_ref.actor.ppo_mini_batch_size=128 \
+    actor_rollout_ref.actor.ppo_mini_batch_size=256 \
     actor_rollout_ref.actor.ppo_micro_batch_size_per_gpu=2 \
     actor_rollout_ref.actor.use_kl_loss=True \
     actor_rollout_ref.actor.kl_loss_coef=0.0001 \
@@ -36,9 +45,9 @@ PYTHONUNBUFFERED=1 python3 -m verl.trainer.main_ppo \
     actor_rollout_ref.rollout.log_prob_micro_batch_size_per_gpu=1 \
     actor_rollout_ref.rollout.tensor_model_parallel_size=1 \
     actor_rollout_ref.rollout.name=vllm \
-    actor_rollout_ref.rollout.n=16 \
+    actor_rollout_ref.rollout.n=8 \
     actor_rollout_ref.rollout.max_num_batched_tokens=32768 \
-    actor_rollout_ref.rollout.gpu_memory_utilization=0.6 \
+    actor_rollout_ref.rollout.gpu_memory_utilization=0.8 \
     actor_rollout_ref.rollout.enforce_eager=False \
     actor_rollout_ref.rollout.free_cache_engine=False \
     actor_rollout_ref.rollout.enable_chunked_prefill=False \
@@ -48,9 +57,8 @@ PYTHONUNBUFFERED=1 python3 -m verl.trainer.main_ppo \
     actor_rollout_ref.ref.fsdp_config.param_offload=True \
     actor_rollout_ref.rollout.agent.activate_agent=True \
     actor_rollout_ref.rollout.agent.tool_name_key=env_name \
-    actor_rollout_ref.rollout.agent.single_response_max_tokens=2048 \
-    actor_rollout_ref.rollout.agent.single_obs_max_length=8192 \
-    actor_rollout_ref.rollout.agent.max_turns=4 \
+    actor_rollout_ref.rollout.agent.single_response_max_tokens=4096 \
+    actor_rollout_ref.rollout.agent.max_turns=8 \
     actor_rollout_ref.rollout.agent.concurrent_workers=1 \
     actor_rollout_ref.rollout.agent.show_tqdm=True \
     trainer.critic_warmup=0 \

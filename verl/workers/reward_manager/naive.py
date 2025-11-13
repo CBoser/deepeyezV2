@@ -17,19 +17,30 @@ from collections import defaultdict
 import torch
 
 from verl import DataProto
-from verl.utils.reward_score import _default_compute_score
+from verl.utils.reward_score import default_compute_score
+from verl.workers.reward_manager import register
 
 import json
 import datetime
 
+@register("naive")
 class NaiveRewardManager:
     """The reward manager."""
 
     def __init__(self, tokenizer, num_examine, compute_score=None, reward_fn_key="data_source") -> None:
-        self.tokenizer = tokenizer
+        """
+        Initialize the NaiveRewardManager instance.
+
+        Args:
+            tokenizer: The tokenizer used to decode token IDs into text.
+            num_examine: The number of batches of decoded responses to print to the console for debugging purpose.
+            compute_score: A function to compute the reward score. If None, `default_compute_score` will be used.
+            reward_fn_key: The key used to access the data source in the non-tensor batch data. Defaults to "data_source".
+        """
+        self.tokenizer = tokenizer  # Store the tokenizer for decoding token IDs
         self.num_examine = num_examine  # the number of batches of decoded responses to print to the console
-        self.compute_score = compute_score or _default_compute_score
-        self.reward_fn_key = reward_fn_key
+        self.compute_score = compute_score or default_compute_score
+        self.reward_fn_key = reward_fn_key  # Store the key for accessing the data source
 
         self.step_cnt = 0
 
@@ -72,9 +83,7 @@ class NaiveRewardManager:
             response_str = self.tokenizer.decode(valid_response_ids)
 
             ground_truth = data_item.non_tensor_batch["reward_model"]["ground_truth"]
-
             data_source = data_item.non_tensor_batch[self.reward_fn_key]
-
             extra_info = data_item.non_tensor_batch.get("extra_info", None)
 
             score = self.compute_score(
@@ -96,26 +105,6 @@ class NaiveRewardManager:
 
             # eos_idx = torch.nonzero(action_or_attn_mask[i, prompt_length: prompt_length + valid_response_length])[-1]
             # reward_tensor[i, eos_idx] = score
-
-            # FOR DEBUGGING ONLY!!! DO NOT COMMIT!!!
-            # action_mask = data_item.batch['action_mask'][prompt_length: prompt_length + valid_response_length]
-            # debug_output = dict(
-            #     step=self.step_cnt,
-            #     prompt=prompt_str,
-            #     response=response_str,
-            #     ground_truth=str(ground_truth['target'].tolist()[0]),
-            #     score=float(score),
-            #     env_reward_sum=float(env_reward.cpu().numpy().sum()),
-            #     valid_prompt_length=int(valid_prompt_length.cpu().item()),
-            #     valid_response_length=int(valid_response_length.cpu().item()),
-            #     prompt_ids=valid_prompt_ids.cpu().numpy().tolist(),
-            #     response_ids=valid_response_ids.cpu().numpy().tolist(),
-            #     action_mask=action_mask.cpu().numpy().tolist(),
-            # )
-
-            # debug_output_str = json.dumps(debug_output, ensure_ascii=False)
-            # with open('/cpfs/user/fengyuan/code/github/verl/checkpoints/agent_ppo_debug/visual_agent_32b_v0.jsonl', 'a+') as fout:
-            #     fout.write(debug_output_str + '\n')
 
             if data_source not in already_print_data_sources:
                 already_print_data_sources[data_source] = 0

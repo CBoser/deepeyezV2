@@ -1,6 +1,6 @@
 set -x
 
-cd /cpfs/user/zhengziwei/workspace/agent/VeRL-Agent
+# export CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7
 
 export HF_HOME=/cpfs/user/zhengziwei/HF_HOME
 export PATH=/cpfs/user/zhengziwei/ENV/miniconda3/envs/verl_agent/bin:$PATH
@@ -8,14 +8,11 @@ export VLLM_USE_MODELSCOPE=false
 export NCCL_DEBUG=WARN
 export WANDB_API_KEY=7d84dc21bf59f2e0dd3f214b75a53786cd8fc5d8
 
-PROJECT_NAME=agent_grpo_vlagent
-EXPERIMENT_NAME=visual_agent_env_v2_model_v1_n4
-BASE_MODEL=/cpfs/user/zhengziwei/HF_HOME/hub/models--Qwen--Qwen2.5-VL-7B-Instruct/snapshots/6e6556e8ce728c7b3e438d75ebf04ec93403dc19
-VISUAL_DATASET_TRAIN=/cpfs/user/honglingyi/DATA/LLM/VL_Agent/parquets/vl_agent_V1_train_box.parquet
-VISUAL_DATASET_TEST=/cpfs/user/honglingyi/DATA/LLM/VL_Agent/parquets/vl_agent_V1_test_box.parquet
+VISUAL_DATASET_TRAIN=vl_agent_V1_train_box.parquet
+VISUAL_DATASET_TEST=vl_agent_V1_test_box.parquet
 
 
-REF_MODEL_PATH=/cpfs/user/honglingyi/MODEL/Qwen/Qwen2.5-VL-7B-Instruct
+REF_MODEL_PATH=Qwen/Qwen2.5-VL-32B-Instruct
 PYTHONUNBUFFERED=1 python3 -m verl.trainer.main_ppo \
     data.train_files=${VISUAL_DATASET_TRAIN} \
     data.val_files=${VISUAL_DATASET_TEST} \
